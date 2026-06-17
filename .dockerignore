@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/__pycache__
+**/.venv
+**/venv
+**/.git
+**/.env
+**/.env.*
+!**/.env.example
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+**/coverage
+**/*.tsbuildinfo
+**/.DS_Store
+infra/**/.terraform

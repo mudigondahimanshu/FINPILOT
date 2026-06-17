@@ -1,0 +1,7 @@
+# ML/AI dependencies — added incrementally per Phase 3 task.
+# Phase 3.1 classifier:  xgboost, scikit-learn, pandas, numpy
+# Phase 3.2 forecasting: torch, onnx, onnxruntime, statsmodels
+# Phase 3.3 sentiment:   transformers, torch  (FinBERT)
+# Phase 3.4 fraud:       scikit-learn, networkx
+# Phase 3.5 RAG:         langchain, sentence-transformers, pgvector
+# Left empty until each task installs exactly what it needs.

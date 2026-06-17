@@ -1,0 +1,64 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.onnx
+*.pt
+*.pkl
+*.joblib
+ml/**/checkpoints/
+ml/**/*.bin
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+
+# --- Data / models (keep code, not artifacts) ---
+data/
+*.csv
+!**/sample_*.csv
+*.sqlite3
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Infra ---
+.terraform/
+*.tfstate
+*.tfstate.*
+infra/**/*.tfvars
+!infra/**/*.example.tfvars
+
+# --- Docker ---
+*.local.yml
+
+# --- Harness / tooling artifacts (not project code) ---
+.claude/
+.remember/
+FINPILOT_CLAUDE_CODE_BRIEF.md
