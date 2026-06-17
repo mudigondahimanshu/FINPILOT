@@ -26,8 +26,11 @@
 - Async SQLAlchemy + asyncpg chosen to match FastAPI's async-first design and the brief's "async" requirement.
 
 **Tests passed / validation run:**
-- Directory structure verified against the brief (all paths present).
-- `docker-compose.yml`, `package.json`, `tsconfig.json` validated as parseable.
+- Directory structure verified against the brief (all paths present, 75 files committed).
+- JSON validated (`package.json`, `tsconfig.json`, `components.json`, `.eslintrc.json`) — all parse.
+- Python backend syntax validated — `py_compile` passes on every `backend/**/*.py`.
+- `git init` + clean initial commit; verified no `.env`, `.claude/`, `.remember/`, or brief staged.
+- ⏳ YAML parse of `docker-compose.yml` / `ci.yml` deferred — `pyyaml` not installed and pip network is sandboxed here. Files are standard; will validate when Docker is available.
 - ⛔ **Could NOT run `docker compose up`** — Docker is not installed on this machine (`docker: command not found`). This is the one Phase 1.1 validation gate that is blocked. Frontend/backend dependency installs (`npm install`, `pip install`) were not run this turn either (heavy; intended to run inside Docker).
 
 **Issues/notes:**
