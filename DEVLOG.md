@@ -1,5 +1,18 @@
 # FinPilot Dev Log
 
+## 2026-06-17 — Phase 1.1 + 1.2 Validation: Full Stack Operational
+
+Docker now installed. **Both validation gates passed:**
+1. **`docker compose up`** — All 5 services boot + healthy (timescaledb + redis + uvicorn w/ migrations + next dev + celery worker). Frontend responds on `:3000`, backend health on `:8000`.
+2. **Auth flow E2E** — Full cycle verified: register → me (bearer) → dup-reject → login → wrong-pwd → refresh (rotate) → logout → revoke. All 8 tests passed.
+
+Fixed in this push:
+- Frontend Dockerfile: added `dev` stage; compose targets it (was missing npm install).
+- Backend compose command: auto-runs `alembic upgrade head` before uvicorn (was manual).
+- Created `.env` with auto-generated JWT secret (gitignored).
+
+---
+
 ## 2026-06-17 — Task Completed: 1.2 Authentication System (OAuth + frontend)
 
 **What was built:**
