@@ -5,15 +5,13 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
-from sqlalchemy.ext.asyncio import async_engine_from_config
-from sqlalchemy.pool import NullPool
-
-from app.core.config import settings
-from app.core.database import Base
-
 # Import models so their tables register on Base.metadata (Task 1.3+).
 import app.models  # noqa: F401
+from alembic import context
+from app.core.config import settings
+from app.core.database import Base
+from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.pool import NullPool
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

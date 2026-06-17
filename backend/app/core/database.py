@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -25,3 +27,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency yielding a scoped async session."""
     async with SessionLocal() as session:
         yield session
+
+
+async def set_rls_user(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Scope this transaction to one user (RLS `app.user_id`). Self-access only."""
+    await session.execute(
+        text("SELECT set_config('app.user_id', :uid, true)"),
+        {"uid": str(user_id)},
+    )
+
+
+async def set_auth_ctx(session: AsyncSession) -> None:
+    """Enable the controlled RLS bypass for pre-auth lookups (login/registration)."""
+    await session.execute(text("SELECT set_config('app.auth_ctx', 'on', true)"))

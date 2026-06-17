@@ -31,6 +31,30 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: finpilot
+          POSTGRES_PASSWORD: finpilot
+          POSTGRES_DB: finpilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finpilot"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://finpilot:finpilot@localhost:5432/finpilot
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-only-test-secret-not-for-production-use-0123456789
+      FINPILOT_INTEGRATION: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,4 +64,5 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: mypy app
+      - run: alembic upgrade head
       - run: pytest --cov=app

@@ -24,14 +24,14 @@
 - [ ] Validate: All services start with `docker compose up`  ⛔ _blocked: Docker not installed on this machine (see DEVLOG)_
 
 ### 1.2 Authentication System
-- [ ] User registration (email + password, bcrypt hash)
-- [ ] User login → JWT access token (15min) + refresh token (7d)
-- [ ] OAuth2 Google login
-- [ ] Protected routes middleware (frontend + backend)
-- [ ] JWT refresh flow
-- [ ] Logout + token invalidation (Redis blacklist)
-- [ ] Row-Level Security (RLS) policies on Postgres
-- [ ] Validate: Auth flow E2E test passes
+- [x] User registration (email + password, bcrypt hash)
+- [x] User login → JWT access token (15min) + refresh token (7d)
+- [ ] OAuth2 Google login  _(next chunk)_
+- [~] Protected routes middleware (frontend + backend)  _(backend guard done; frontend middleware next)_
+- [x] JWT refresh flow  _(with refresh-token rotation)_
+- [x] Logout + token invalidation (Redis blacklist)
+- [x] Row-Level Security (RLS) policies on Postgres  _(users table; GUC-based, FORCE RLS)_
+- [ ] Validate: Auth flow E2E test passes  _(test written + wired into CI w/ Postgres+Redis; runs there / under Docker)_
 
 ### 1.3 Database Schema
 - [ ] Users table

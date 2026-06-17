@@ -1,1 +1,5 @@
-# SQLAlchemy ORM models. Populated in Task 1.3 (Database Schema).
+"""SQLAlchemy ORM models. Imported here so Alembic sees their metadata."""
+
+from app.models.user import User
+
+__all__ = ["User"]
