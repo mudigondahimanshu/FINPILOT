@@ -1,5 +1,58 @@
 # FinPilot Dev Log
 
+## 2026-06-17 — Task Completed: 1.2 Authentication System (OAuth + frontend)
+
+**What was built:**
+- **Google OAuth2** (Authorization Code flow): routes `GET /auth/google/login`
+  (sets a short-lived httpOnly `oauth_state` cookie, redirects to consent) and
+  `GET /auth/google/callback` (double-submit CSRF check via `secrets.compare_digest`,
+  code→token exchange, userinfo fetch, find-or-create/link user, issues the token
+  pair, hands the access token to the SPA via URL **fragment**, sets the refresh
+  cookie). Dormant with a clean 503 until `GOOGLE_CLIENT_ID/SECRET` are set.
+- Widened the refresh cookie `path` from `/auth` to `/` so the Next.js middleware
+  can read its presence to gate routes (token stays httpOnly — never JS-readable).
+- **Frontend auth (full design pass):** split-panel auth shell (atmospheric indigo
+  aurora + engineering grid, staggered `rise` load animation) on the brief's tokens;
+  `/login` + `/register` pages (live password-rule checklist mirroring the backend,
+  inline error surfacing, Google button), `/auth/callback` token-adoption page.
+- **Session plumbing:** `AuthProvider` (in-memory access token — never localStorage;
+  silent refresh on mount via the httpOnly cookie; `login`/`register`/`logout`/
+  `adoptToken`), `authFetch` (bearer attach + single transparent 401→refresh→retry,
+  with concurrent-refresh coalescing).
+- **Route protection:** `middleware.ts` (cookie-presence gate; bounces anon users to
+  `/login?redirect=…`, and authed users away from auth pages) + an in-app
+  `RequireAuth` guard. Protected `(app)/dashboard` shell (sidebar + topbar, user
+  avatar/initials, logout) with placeholder KPI cards.
+
+**Tech used:**
+- Backend: `httpx` (async Google calls), `secrets` (state + constant-time compare),
+  FastAPI `RedirectResponse`.
+- Frontend: Next.js App Router route groups, `next/navigation`, React context,
+  Tailwind tokens, lucide-react icons. No new dependencies added.
+
+**Why this approach:**
+- **Access token in memory, refresh in an httpOnly cookie** — XSS can't read the
+  long-lived credential; CSRF is contained by SameSite=Strict + the bearer model.
+- **OAuth token via URL fragment** (not query) — fragments never hit a server or
+  access logs; the callback page strips it from the address bar immediately.
+- **Double-submit `oauth_state` cookie** — stateless CSRF protection for the OAuth
+  round-trip without server-side session storage.
+
+**Tests passed / validation run (locally):**
+- Backend — ruff: **All checks passed**; mypy: **no issues (20 files)**; pytest:
+  **7 passed, 1 skipped** (integration auto-skips without DB/Redis).
+- Frontend — `tsc --noEmit`: **clean**; `next lint`: **no warnings/errors**;
+  `next build`: **success** (8 routes prerendered + middleware compiled).
+
+**Issues/notes:**
+- S105 false positive on `_GOOGLE_TOKEN_URL` (string contains "token") → `# noqa`.
+- `useSearchParams` on `/login` is wrapped in `<Suspense>` per Next 14's CSR-bailout
+  requirement so the page still prerenders.
+- Full OAuth E2E (real Google round-trip) needs live credentials; the local flow is
+  exercised structurally. Email/password E2E runs in CI (Postgres+Redis).
+
+---
+
 ## 2026-06-17 — Task In Progress: 1.2 Authentication System (backend core)
 
 **What was built:**

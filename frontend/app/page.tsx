@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ShieldCheck, LineChart, Bot, Activity } from "lucide-react";
 
 const features = [
@@ -53,15 +54,18 @@ export default function Home() {
             use it.
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
-            <Button size="lg" disabled>
+            <Link href="/register" className={buttonVariants({ size: "lg" })}>
               Get started
-            </Button>
-            <Button size="lg" variant="outline" disabled>
-              View dashboard
-            </Button>
+            </Link>
+            <Link
+              href="/login"
+              className={buttonVariants({ size: "lg", variant: "outline" })}
+            >
+              Sign in
+            </Link>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Auth & dashboard land in Phase 1.2–1.5.
+            Start with virtual ₹1,00,000 — paper trading only.
           </p>
         </section>
 

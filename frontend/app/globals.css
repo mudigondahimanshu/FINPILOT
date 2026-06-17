@@ -73,3 +73,55 @@
     @apply font-mono;
   }
 }
+
+@layer utilities {
+  /* Atmospheric backdrop for the auth brand panel: layered indigo glow over a
+     faint engineering grid — depth without leaving the brief's palette. */
+  .auth-aurora {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(
+        60% 50% at 20% 12%,
+        hsl(239 84% 67% / 0.22),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 50% at 92% 88%,
+        hsl(239 84% 67% / 0.14),
+        transparent 70%
+      );
+  }
+
+  .auth-grid {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(120% 80% at 30% 20%, #000 30%, transparent 75%);
+  }
+
+  /* Slow drift on the indigo glow so the panel feels alive, not static. */
+  .auth-drift {
+    animation: auth-drift 14s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes auth-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 2%, 0) scale(1.06);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

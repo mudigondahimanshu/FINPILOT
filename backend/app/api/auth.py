@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import secrets
 import time
 import uuid
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,12 +35,13 @@ from app.schemas.auth import (
     RegisterRequest,
     UserRead,
 )
-from app.services import auth_service
+from app.services import auth_service, oauth_service
 from app.services.auth_service import AuthError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 REFRESH_COOKIE = "refresh_token"
+OAUTH_STATE_COOKIE = "oauth_state"
 # Brief mandates secure cookies; relax only in local dev so http://localhost works.
 _COOKIE_SECURE = settings.environment != "development"
 
@@ -42,13 +53,15 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         httponly=True,
         secure=_COOKIE_SECURE,
         samesite="strict",
-        path="/auth",
+        # Path "/" (not "/auth") so the Next.js middleware can read presence of
+        # the cookie to gate protected routes; the token itself stays httpOnly.
+        path="/",
         max_age=settings.refresh_token_expire_days * 24 * 3600,
     )
 
 
 def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(REFRESH_COOKIE, path="/auth")
+    response.delete_cookie(REFRESH_COOKIE, path="/")
 
 
 async def _blacklist_remaining(payload: dict) -> None:
@@ -157,3 +170,79 @@ async def logout(
 @router.get("/me", response_model=UserRead)
 async def me(current_user: User = Depends(get_current_user)) -> UserRead:
     return UserRead.model_validate(current_user)
+
+
+# ── Google OAuth2 (Authorization Code flow) ──────────────────────────────────
+# Dormant until GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are set. CSRF is enforced
+# via a double-submit `oauth_state` cookie compared against the `state` round-trip.
+
+
+def _require_google_configured() -> None:
+    if not settings.google_oauth_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="google sign-in is not configured",
+        )
+
+
+@router.get("/google/login")
+async def google_login() -> RedirectResponse:
+    """Kick off Google sign-in: set a CSRF state cookie, redirect to consent."""
+    _require_google_configured()
+    state = secrets.token_urlsafe(32)
+    url = oauth_service.build_authorization_url(state)
+    redirect = RedirectResponse(url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    redirect.set_cookie(
+        key=OAUTH_STATE_COOKIE,
+        value=state,
+        httponly=True,
+        secure=_COOKIE_SECURE,
+        samesite="lax",  # must survive the cross-site redirect back from Google
+        path="/auth",
+        max_age=600,
+    )
+    return redirect
+
+
+@router.get("/google/callback")
+async def google_callback(
+    session: AsyncSession = Depends(get_db),
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    oauth_state: str | None = Cookie(default=None, alias=OAUTH_STATE_COOKIE),
+) -> RedirectResponse:
+    """Handle Google's redirect: verify CSRF, exchange code, sign the user in."""
+    _require_google_configured()
+
+    def _fail(reason: str) -> RedirectResponse:
+        resp = RedirectResponse(
+            f"{settings.frontend_url}/login?error={reason}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        resp.delete_cookie(OAUTH_STATE_COOKIE, path="/auth")
+        return resp
+
+    if error or not code or not state:
+        return _fail("oauth_denied")
+    # Double-submit CSRF check: cookie state must match the query state.
+    if not oauth_state or not secrets.compare_digest(oauth_state, state):
+        return _fail("oauth_state_mismatch")
+
+    try:
+        google_token = await oauth_service.exchange_code(code)
+        info = await oauth_service.fetch_userinfo(google_token)
+        user = await oauth_service.find_or_create_user(session, info)
+    except AuthError:
+        return _fail("oauth_failed")
+
+    pair = auth_service.issue_token_pair(user)
+    # Hand the access token to the SPA via the URL fragment (never sent to a
+    # server, not stored in logs); the refresh token rides in its httpOnly cookie.
+    redirect = RedirectResponse(
+        f"{settings.frontend_url}/auth/callback#access_token={pair.access_token}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+    _set_refresh_cookie(redirect, pair.refresh_token)
+    redirect.delete_cookie(OAUTH_STATE_COOKIE, path="/auth")
+    return redirect

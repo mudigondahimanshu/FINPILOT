@@ -26,8 +26,8 @@
 ### 1.2 Authentication System
 - [x] User registration (email + password, bcrypt hash)
 - [x] User login → JWT access token (15min) + refresh token (7d)
-- [ ] OAuth2 Google login  _(next chunk)_
-- [~] Protected routes middleware (frontend + backend)  _(backend guard done; frontend middleware next)_
+- [x] OAuth2 Google login  _(Authorization Code flow + double-submit CSRF state cookie; dormant until creds set)_
+- [x] Protected routes middleware (frontend + backend)  _(Next.js middleware cookie gate + in-app RequireAuth guard; backend RLS guard)_
 - [x] JWT refresh flow  _(with refresh-token rotation)_
 - [x] Logout + token invalidation (Redis blacklist)
 - [x] Row-Level Security (RLS) policies on Postgres  _(users table; GUC-based, FORCE RLS)_
