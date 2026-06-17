@@ -33,8 +33,22 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=15)
     refresh_token_expire_days: int = Field(default=7)
 
+    # OAuth2 Google (dormant until credentials are supplied)
+    google_client_id: str = Field(default="")
+    google_client_secret: str = Field(default="")
+    google_redirect_uri: str = Field(
+        default="http://localhost:8000/auth/google/callback"
+    )
+
+    # Where to send the browser after a successful OAuth login.
+    frontend_url: str = Field(default="http://localhost:3000")
+
     # CORS allow-list (comma-separated in env)
     cors_origins: str = Field(default="http://localhost:3000")
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret)
 
     @property
     def cors_origin_list(self) -> list[str]:
