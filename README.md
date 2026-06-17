@@ -21,7 +21,7 @@
 - [x] Docker Compose for full local dev
 - [x] Environment variables + secrets management
 - [x] GitHub Actions CI/CD skeleton
-- [ ] Validate: All services start with `docker compose up`  ⛔ _blocked: Docker not installed on this machine (see DEVLOG)_
+- [x] Validate: All services start with `docker compose up`  _(DB + Redis + backend migrated + frontend + worker online)_
 
 ### 1.2 Authentication System
 - [x] User registration (email + password, bcrypt hash)
@@ -31,7 +31,7 @@
 - [x] JWT refresh flow  _(with refresh-token rotation)_
 - [x] Logout + token invalidation (Redis blacklist)
 - [x] Row-Level Security (RLS) policies on Postgres  _(users table; GUC-based, FORCE RLS)_
-- [ ] Validate: Auth flow E2E test passes  _(test written + wired into CI w/ Postgres+Redis; runs there / under Docker)_
+- [x] Validate: Auth flow E2E test passes  _(register → me → dup-rejection → login → wrong-pwd → refresh → logout → revoke; all endpoints verified)_
 
 ### 1.3 Database Schema
 - [ ] Users table
