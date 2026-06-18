@@ -8,12 +8,20 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.account import Account
+    from app.models.budget import Budget
+    from app.models.category import Category
+    from app.models.portfolio import Portfolio, Trade
+    from app.models.transaction import Transaction
 
 
 class User(Base):
@@ -48,6 +56,26 @@ class User(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    # Relationships (populated by child models)
+    accounts: Mapped[list[Account]] = relationship(
+        "Account", back_populates="user", cascade="all, delete-orphan"
+    )
+    categories: Mapped[list[Category]] = relationship(
+        "Category", back_populates="user", cascade="all, delete-orphan"
+    )
+    transactions: Mapped[list[Transaction]] = relationship(
+        "Transaction", back_populates="user", cascade="all, delete-orphan"
+    )
+    budgets: Mapped[list[Budget]] = relationship(
+        "Budget", back_populates="user", cascade="all, delete-orphan"
+    )
+    portfolios: Mapped[list[Portfolio]] = relationship(
+        "Portfolio", back_populates="user", cascade="all, delete-orphan"
+    )
+    trades: Mapped[list[Trade]] = relationship(
+        "Trade", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:  # pragma: no cover

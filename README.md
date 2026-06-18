@@ -34,16 +34,17 @@
 - [x] Validate: Auth flow E2E test passes  _(register → me → dup-rejection → login → wrong-pwd → refresh → logout → revoke; all endpoints verified)_
 
 ### 1.3 Database Schema
-- [ ] Users table
-- [ ] Accounts table (bank accounts)
-- [ ] Transactions table (TimescaleDB)
-- [ ] Categories table
-- [ ] Budgets table
-- [ ] Portfolios table
-- [ ] Trades table
-- [ ] Audit log table
-- [ ] Alembic migrations working
-- [ ] Validate: Schema applied, migrations reversible
+- [x] Users table _(migration 0001)_
+- [x] Accounts table (bank accounts) _(migration 0002)_
+- [x] Transactions table (TimescaleDB) _(hypertable on `date`, 7-day chunks, composite PK)_
+- [x] Categories table _(11 system categories seeded; user-custom + system RLS)_
+- [x] Budgets table _(per-category monthly/weekly/yearly caps with alert threshold)_
+- [x] Portfolios table _(paper trading; ₹1,00,000 starting cash)_
+- [x] Trades table _(buy/sell log linked to portfolio)_
+- [x] Audit log table _(append-only, JSONB old/new snapshots)_
+- [x] Embeddings table _(pgvector(1536) + HNSW index for Phase 2 RAG)_
+- [x] Alembic migrations working _(0001_users → 0002_schema; async engine)_
+- [x] Validate: Schema applied, migrations reversible _(downgrade → upgrade cycle clean)_
 
 ### 1.4 Transaction Management
 - [ ] CSV upload and parsing

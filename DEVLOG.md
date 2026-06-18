@@ -1,5 +1,56 @@
 # FinPilot Dev Log
 
+## 2026-06-18 — Task Completed: 1.3 Database Schema
+
+**What was built:**
+- **9 ORM models** (SQLAlchemy 2 async, `Mapped[]`, `TYPE_CHECKING` guards to avoid
+  circular imports): `Account`, `Category`, `Transaction`, `Budget`, `Portfolio`,
+  `Trade`, `AuditLog`, `Embedding`.
+- **Alembic migration `0002_schema`** (revises `0001_users`):
+  - All 8 tables created with FK constraints + composite indexes.
+  - `transactions` promoted to a **TimescaleDB hypertable** partitioned on `date`
+    (7-day chunks). Composite PK `(id, date)` required by TimescaleDB.
+  - **11 system categories** seeded (Food, Transport, Shopping, Entertainment, Health,
+    Utilities, Travel, Education, Salary, Investments, Other) with lucide-react icons
+    and hex colours.
+  - `embeddings` table: `vector(1536)` column (pgvector) + **HNSW ANN index**
+    (`vector_cosine_ops`) for Phase 2 RAG. JSONB shadow column keeps the ORM import
+    clean (no pgvector Python package needed at import time).
+  - **RLS** on every user-owned table: `<table>_self` (app.user_id GUC) +
+    `<table>_auth_ctx` bypass. Categories get a special policy allowing system rows
+    (user_id IS NULL) to be globally readable.
+- **Indexes**: `(user_id, date)` + `(user_id, category_id)` on transactions for the
+  two dominant query patterns; per-table user_id, portfolio_id, symbol indexes.
+- Back-references wired into `User` model (accounts, categories, transactions,
+  budgets, portfolios, trades).
+
+**Tech used:**
+- TimescaleDB `create_hypertable()` called via raw SQL in migration.
+- pgvector `vector(1536)` column + HNSW index via raw DDL.
+- Alembic helpers `_enable_rls`, `_self_policy`, `_auth_ctx_policy` to DRY up the
+  repeated RLS boilerplate across 7 tables.
+
+**Why this approach:**
+- Composite PK `(id, date)` on transactions: TimescaleDB requires the partition
+  column in the PK; UUID-only PK would cause a constraint violation on hypertable
+  creation.
+- HNSW over IVFFlat for pgvector: better recall at query time without needing a
+  training step (IVFFlat requires `ANALYZE` before it performs).
+- JSONB shadow on `embeddings.vector_json`: lets the ORM and migration tooling
+  work without the pgvector Python package installed; the real `vector` column lives
+  alongside it via raw DDL.
+
+**Tests passed / validation run (locally):**
+- ruff: **All checks passed** (27 files).
+- mypy: **Success, no issues** (27 files).
+- pytest: **7 passed, 1 skipped**.
+- Migration downgrade `0002 → 0001` (all 8 tables dropped) then upgrade back —
+  **clean round-trip**.
+- DB inspect: all 10 tables present; `transactions` confirmed as hypertable
+  (TimescaleDB `hypertables` view); 11 system categories seeded.
+
+---
+
 ## 2026-06-17 — Phase 1.1 + 1.2 Validation: Full Stack Operational
 
 Docker now installed. **Both validation gates passed:**
