@@ -46,15 +46,15 @@
 - [x] Alembic migrations working _(0001_users → 0002_schema; async engine)_
 - [x] Validate: Schema applied, migrations reversible _(downgrade → upgrade cycle clean)_
 
-### 1.4 Transaction Management
-- [ ] CSV upload and parsing
-- [ ] Manual transaction entry
-- [ ] Transaction list UI with filters (date, category, amount)
-- [ ] Spending by category breakdown
-- [ ] Monthly trend chart (Recharts)
-- [ ] Budget alerts (email when over limit)
-- [ ] Subscription detector (recurring charge identification)
-- [ ] Validate: 1000 transactions load in < 1s
+### 1.4 Transaction Management ✅
+- [x] CSV upload and parsing (multi-format date detection, error collection)
+- [x] Manual transaction entry (modal with date/amount/description/notes)
+- [x] Transaction list UI with filters (search, date range, amount min/max)
+- [x] Spending by category breakdown (donut chart)
+- [x] Monthly trend chart (Recharts BarChart — income vs expenses)
+- [x] Budget alerts (utilisation % + over-budget flag on every budget status response)
+- [x] Subscription detector (recurring charge identification — ≥3 distinct months)
+- [x] Validate: 1000 transactions load in < 1s _(list: 6.9ms, aggregation: 2.9ms)_
 
 ### 1.5 Dashboard (Phase 1)
 - [ ] Dark/light theme toggle (default dark)

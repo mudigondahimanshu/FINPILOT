@@ -1,0 +1,115 @@
+"use client";
+
+import * as React from "react";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { type SpendingSummary } from "@/lib/api";
+import { formatINR } from "@/lib/utils";
+
+interface Props {
+  summary: SpendingSummary;
+}
+
+const FALLBACK_COLORS = [
+  "#6366F1", "#F59E0B", "#3B82F6", "#EC4899",
+  "#8B5CF6", "#10B981", "#06B6D4", "#EF4444",
+];
+
+function fmt(v: string | number) {
+  return formatINR(Math.abs(Number(v)));
+}
+
+export function SpendingCharts({ summary }: Props) {
+  // Only expense categories (total < 0) for the donut.
+  const donutData = summary.by_category
+    .filter((c) => Number(c.total) < 0)
+    .map((c, i) => ({
+      name: c.category_name,
+      value: Math.abs(Number(c.total)),
+      color: c.category_color || FALLBACK_COLORS[i % FALLBACK_COLORS.length]!,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  const trendData = summary.monthly_trend.map((m) => ({
+    month: m.month,
+    Income: Number(m.income),
+    Expenses: Math.abs(Number(m.expenses)),
+  }));
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {/* Spending donut */}
+      <div className="rounded-lg border border-border bg-card p-5">
+        <h3 className="mb-4 text-sm font-medium">Spending by category</h3>
+        {donutData.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">No expense data yet</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={donutData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={90}
+                paddingAngle={2}
+              >
+                {donutData.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v: number) => [fmt(v), ""]}
+                contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }}
+                labelStyle={{ color: "hsl(0 0% 96%)", fontWeight: 500 }}
+                itemStyle={{ color: "hsl(0 0% 80%)" }}
+              />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Monthly trend bar chart */}
+      <div className="rounded-lg border border-border bg-card p-5">
+        <h3 className="mb-4 text-sm font-medium">Monthly trend</h3>
+        {trendData.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">No trend data yet</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={trendData} barSize={14} barGap={4}>
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip
+                formatter={(v: number, name: string) => [fmt(v), name]}
+                contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }}
+                labelStyle={{ color: "hsl(0 0% 96%)", fontWeight: 500 }}
+                itemStyle={{ color: "hsl(0 0% 80%)" }}
+              />
+              <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-muted-foreground">{v}</span>} />
+              <Bar dataKey="Income" fill="#22C55E" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="Expenses" fill="#EF4444" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}

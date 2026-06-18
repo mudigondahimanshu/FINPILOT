@@ -204,3 +204,39 @@ Fixed in this push:
 - Local Python is **3.14**; brief specifies **3.11**. Fine for scaffolding, but ML wheels (torch/xgboost) and some libs may lack 3.14 builds — backend container pins 3.11 to stay on the supported track.
 
 ---
+
+## Phase 1.4 — Transaction Management (2026-06-18)
+
+**What was built:**
+
+_Backend_ (`backend/app/`):
+- `schemas/transaction.py` — Pydantic v2 schemas: `TransactionCreate`, `TransactionUpdate`, `TransactionRead`, `TransactionPage`, `SpendingSummary` (with `CategorySpend`, `MonthlyTrend`), `BudgetStatus`, `CsvUploadResult`.
+- `services/transaction_service.py` — Full CRUD + CSV import (multi-format date detection with `strptime` fallback loop, category name resolution by case-insensitive match, row-level error collection) + `spending_summary()` (SQL `GROUP BY category_id` with JOIN to categories + monthly trend) + `budget_status()` (current-month spend vs budget caps, utilisation %, over-budget flag) + `detect_recurring()` (raw SQL: descriptions appearing in ≥3 distinct calendar months).
+- `api/transactions.py` — All REST routes mounted at `/transactions`: paginated list (search, date range, amount filter), create, update, delete (204), CSV upload (5 MB limit, 10/min rate limit), spending summary, budget status, recurring detector.
+- `main.py` — `transactions` router registered.
+
+_Frontend_ (`frontend/`):
+- `lib/api.ts` — Extended with `Transaction`, `TransactionFilters`, `SpendingSummary`, `BudgetStatus`, `CsvUploadResult` types + `api.transactions.*` namespace (list, create, update, delete, uploadCsv, summary, budgets, recurring).
+- `components/transactions/transaction-filters.tsx` — Filter bar: keyword search, date from/to pickers, amount min/max, clear-all button. Emits filter change on every input change.
+- `components/transactions/transaction-table.tsx` — Sortable table with color-coded amounts (green income / red expense), category color badges (hex-keyed pills), edit/delete buttons, prev/next pagination.
+- `components/transactions/add-transaction-modal.tsx` — Add/edit modal: date, signed amount (positive = income), description, notes. Switches to PATCH on edit mode.
+- `components/transactions/csv-upload.tsx` — Drag-and-drop CSV upload zone; shows imported count + skipped count + per-row error list.
+- `components/transactions/spending-charts.tsx` — Recharts `PieChart` donut (top 8 expense categories by absolute spend) + `BarChart` monthly income vs expenses trend (6 months).
+- `app/(app)/transactions/page.tsx` — Main page assembling all components: KPI cards (total income / expenses / net savings), spending charts, filter bar + table, CSV upload toggle panel, add/edit modal. Fetches list + summary in parallel on mount and on every filter change.
+- `components/dashboard/app-shell.tsx` — Sidebar nav refactored: Overview → `/dashboard`, Spending → `/transactions` (both active links); remaining items show "soon" tag. Active state detected via `usePathname`.
+
+**Tech decisions:**
+- `spending_summary()` uses a single SQL query with `GROUP BY` + Python-side monthly trend accumulation to avoid N+1 on categories.
+- CSV date format detection: tries `%Y-%m-%d`, `%d/%m/%Y`, `%m/%d/%Y`, `%d-%m-%Y`, `%d %b %Y` in order — first successful parse wins.
+- `detect_recurring()` raw SQL deliberately bypasses the ORM to express `COUNT(DISTINCT date_trunc('month', date))` cleanly.
+- 204 DELETE uses `response_class=Response` to satisfy FastAPI 0.111's strict body assertion.
+- RLS GUC (`set_rls_user`, `set_auth_ctx`) called in every service function so all queries go through Row-Level Security.
+
+**Validation:**
+- ruff: 0 violations (4 auto-fixed: `I001` import sort, `UP017` `datetime.UTC` alias).
+- mypy: `Success: no issues found in 30 source files`.
+- pytest: `7 passed, 1 skipped`.
+- Load test (1000 transactions, TimescaleDB hypertable): list query **6.9ms**, aggregation **2.9ms** — both < 1s ✅.
+- Frontend: `tsc --noEmit` clean, ESLint 0 warnings, production build successful (all 9 static pages generated).
+
+---

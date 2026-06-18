@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Bot,
   LayoutDashboard,
@@ -15,11 +16,11 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const nav = [
-  { icon: LayoutDashboard, label: "Overview", active: true },
-  { icon: Wallet, label: "Spending", active: false },
-  { icon: LineChart, label: "Paper trading", active: false },
-  { icon: Bot, label: "Copilot", active: false },
-  { icon: ShieldCheck, label: "Fraud guard", active: false },
+  { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
+  { icon: Wallet, label: "Spending", href: "/transactions" },
+  { icon: LineChart, label: "Paper trading", href: null },
+  { icon: Bot, label: "Copilot", href: null },
+  { icon: ShieldCheck, label: "Fraud guard", href: null },
 ];
 
 function initials(name: string | null, email: string): string {
@@ -36,6 +37,7 @@ function initials(name: string | null, email: string): string {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[15rem_1fr]">
@@ -49,25 +51,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <nav className="flex flex-1 flex-col gap-1">
-          {nav.map(({ icon: Icon, label, active }) => (
-            <button
-              key={label}
-              disabled={!active}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                active
-                  ? "bg-secondary font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-secondary/60 disabled:opacity-50 disabled:hover:bg-transparent"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-              {!active && (
+          {nav.map(({ icon: Icon, label, href }) => {
+            const isActive = href ? pathname.startsWith(href) : false;
+            const cls = `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+              isActive
+                ? "bg-secondary font-medium text-foreground"
+                : "text-muted-foreground hover:bg-secondary/60"
+            } ${!href ? "opacity-50 pointer-events-none" : ""}`;
+            return href ? (
+              <Link key={label} href={href} className={cls}>
+                <Icon className="h-4 w-4" />
+                {label}
+              </Link>
+            ) : (
+              <span key={label} className={cls}>
+                <Icon className="h-4 w-4" />
+                {label}
                 <span className="ml-auto font-mono text-[9px] uppercase tracking-wide text-muted-foreground/60">
                   soon
                 </span>
-              )}
-            </button>
-          ))}
+              </span>
+            );
+          })}
         </nav>
 
         <div className="mt-4 rounded-md border border-border p-3">

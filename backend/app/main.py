@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import auth, health
+from app.api import auth, health, transactions
 from app.core.config import settings
 
 
@@ -28,6 +28,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(transactions.router)
 
     @app.get("/", tags=["root"])
     async def root() -> dict[str, str]:

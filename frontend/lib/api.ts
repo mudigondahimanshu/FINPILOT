@@ -134,6 +134,97 @@ export interface LoginPayload {
   password: string;
 }
 
+// ── Transaction types ────────────────────────────────────────────────────────
+export interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  is_system: boolean;
+}
+
+export interface Transaction {
+  id: string;
+  date: string;
+  amount: string;
+  currency: string;
+  description: string;
+  notes: string | null;
+  source: string;
+  merchant: string | null;
+  is_recurring: boolean | null;
+  category_id: string | null;
+  account_id: string | null;
+  category: Category | null;
+  created_at: string;
+}
+
+export interface TransactionPage {
+  items: Transaction[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface TransactionCreate {
+  date: string;
+  amount: number;
+  currency?: string;
+  description: string;
+  notes?: string;
+  category_id?: string;
+  source?: string;
+}
+
+export interface SpendingSummary {
+  by_category: Array<{
+    category_id: string | null;
+    category_name: string;
+    category_color: string;
+    total: string;
+    count: number;
+  }>;
+  monthly_trend: Array<{
+    month: string;
+    income: string;
+    expenses: string;
+    net: string;
+  }>;
+  total_income: string;
+  total_expenses: string;
+  savings_rate: string;
+}
+
+export interface BudgetStatus {
+  budget_id: string;
+  category_name: string;
+  period: string;
+  budget_amount: string;
+  spent: string;
+  remaining: string;
+  utilisation: string;
+  alert_threshold: string;
+  over_budget: boolean;
+}
+
+export interface CsvUploadResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface TransactionFilters {
+  page?: number;
+  page_size?: number;
+  date_from?: string;
+  date_to?: string;
+  category_id?: string;
+  amount_min?: number;
+  amount_max?: number;
+  search?: string;
+}
+
 // ── Endpoint surface ─────────────────────────────────────────────────────────
 export const api = {
   health: () => apiFetch<HealthResponse>("/health"),
@@ -153,5 +244,44 @@ export const api = {
     me: () => authFetch<User>("/auth/me"),
     logout: () => authFetch<void>("/auth/logout", { method: "POST" }),
     googleLoginUrl: () => `${API_URL}/auth/google/login`,
+  },
+
+  transactions: {
+    list: (filters: TransactionFilters = {}) => {
+      const p = new URLSearchParams();
+      Object.entries(filters).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") p.set(k, String(v));
+      });
+      return authFetch<TransactionPage>(`/transactions?${p}`);
+    },
+    create: (body: TransactionCreate) =>
+      authFetch<Transaction>("/transactions", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<TransactionCreate>) =>
+      authFetch<Transaction>(`/transactions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      authFetch<void>(`/transactions/${id}`, { method: "DELETE" }),
+    uploadCsv: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return authFetch<CsvUploadResult>("/transactions/import/csv", {
+        method: "POST",
+        headers: {},  // let browser set multipart boundary
+        body: form,
+      });
+    },
+    summary: (params: { date_from?: string; date_to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (params.date_from) p.set("date_from", params.date_from);
+      if (params.date_to) p.set("date_to", params.date_to);
+      return authFetch<SpendingSummary>(`/transactions/summary/spending?${p}`);
+    },
+    budgets: () => authFetch<BudgetStatus[]>("/transactions/summary/budgets"),
+    recurring: () => authFetch<Record<string, unknown>[]>("/transactions/summary/recurring"),
   },
 };
