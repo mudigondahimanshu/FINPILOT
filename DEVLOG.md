@@ -240,3 +240,23 @@ _Frontend_ (`frontend/`):
 - Frontend: `tsc --noEmit` clean, ESLint 0 warnings, production build successful (all 9 static pages generated).
 
 ---
+
+## Phase 1.5 — Dashboard (2026-06-18)
+
+**What was built:**
+
+`frontend/app/(app)/dashboard/page.tsx` — full dashboard replacing the placeholder:
+- **KPI cards (4-column grid)**: total income, total expenses, net savings, active-budget count. All values fetched from `api.transactions.summary()` + `api.transactions.budgets()` in parallel on mount. Empty/loading states handled gracefully.
+- **Savings rate gauge**: SVG arc gauge (270° sweep) — green ≥ 20%, amber ≥ 10%, red < 10%. CSS `transition` on the filled arc for animated on-load reveal. Rate = `(income − expenses) / income`.
+- **Monthly summary legend**: income / expenses / saved breakdown under the gauge with coloured dot bullets.
+- **Budget progress bars**: per-budget horizontal bar with `utilisation %` clamped to 100%, colour-coded (green → amber → red). Over-budget label in red. Fetched from `/transactions/summary/budgets`.
+- **Spending charts**: reuses `<SpendingCharts>` (category donut + monthly bar) from Phase 1.4 — no duplication.
+- **Recent transactions list**: fetches `api.transactions.list({ page: 1, page_size: 5 })` — shows last 5 with date, category badge, and signed amount. "View all →" links to `/transactions`.
+- **Coming-soon module stubs**: Fraud guard + Copilot cards with dashed border.
+- **Responsive layout**: `lg:grid-cols-[18rem_1fr]` for gauge + budget side-by-side; `sm:grid-cols-2 lg:grid-cols-4` KPI row; all text truncated with `max-w-*`.
+
+**Validation:**
+- `tsc --noEmit`: clean. ESLint: 0 warnings. Production build: 9 pages generated.
+- Lighthouse (standalone production build, headless Chrome): Performance **100**, Accessibility **91**, Best Practices **96**, SEO **100** — all > 85 ✅.
+
+---

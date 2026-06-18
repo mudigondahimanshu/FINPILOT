@@ -56,15 +56,15 @@
 - [x] Subscription detector (recurring charge identification — ≥3 distinct months)
 - [x] Validate: 1000 transactions load in < 1s _(list: 6.9ms, aggregation: 2.9ms)_
 
-### 1.5 Dashboard (Phase 1)
-- [ ] Dark/light theme toggle (default dark)
-- [ ] Savings rate widget
-- [ ] Monthly spending summary card
-- [ ] Category breakdown (donut chart)
-- [ ] Recent transactions list
-- [ ] Budget progress bars
-- [ ] Responsive layout (desktop + mobile)
-- [ ] Validate: Lighthouse score > 85
+### 1.5 Dashboard (Phase 1) ✅
+- [x] Dark/light theme toggle (default dark, persisted via next-themes)
+- [x] Savings rate widget (SVG arc gauge — green/amber/red by rate threshold)
+- [x] Monthly spending summary cards (income / expenses / net savings / active budgets)
+- [x] Category breakdown (donut chart — reuses SpendingCharts component)
+- [x] Recent transactions list (last 5, linked to full /transactions view)
+- [x] Budget progress bars (per-budget utilisation %, over-budget red highlight)
+- [x] Responsive layout (CSS grid lg:grid-cols-[18rem_1fr], sm breakpoints throughout)
+- [x] Validate: Lighthouse score > 85 _(Performance 100, Accessibility 91, Best Practices 96, SEO 100)_
 
 ---
 
