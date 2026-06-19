@@ -12,6 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, rate_limit
 from app.core.database import get_db
+from app.core.transaction_graph import (
+    TransactionGraph,
+    duplicate_transactions,
+    round_number_anomalies,
+)
 from app.models.user import User
 from app.schemas.transaction import (
     BudgetStatus,
@@ -154,3 +159,29 @@ async def recurring_transactions(
     session: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     return await transaction_service.detect_recurring(session, current_user.id)
+
+
+# ── Fraud / anomaly detection (graph DSA) ────────────────────────────────────
+
+@router.get("/summary/fraud")
+async def fraud_signals(
+    window_hours: int = Query(default=24, ge=1, le=720),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Detect anomalous transactions using a transaction adjacency-list graph.
+
+    Returns:
+    - graph_summary        : node/edge count of the merchant graph
+    - high_freq_merchants  : merchants appearing ≥ 5 times (potential fraud rings)
+    - duplicate_signals    : same-amount same-merchant pairs within *window_hours*
+    - round_amount_signals : suspiciously round amounts (₹1000/500/100 multiples)
+    """
+    rows = await transaction_service.list_all_for_fraud(session, current_user.id)
+    graph = TransactionGraph.from_transactions(rows)
+    return {
+        "graph_summary": graph.graph_summary(),
+        "high_freq_merchants": graph.high_frequency_merchants(threshold=5),
+        "duplicate_signals": duplicate_transactions(rows, window_hours=window_hours),
+        "round_amount_signals": round_number_anomalies(rows),
+    }

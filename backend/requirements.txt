@@ -1,4 +1,4 @@
-# FinPilot backend — core runtime deps (Phase 1).
+# FinPilot backend — core runtime deps (Phase 1 + 2).
 # Heavier ML/LLM deps live in ml/ and are added per-phase.
 
 fastapi==0.111.0
@@ -15,3 +15,27 @@ bcrypt==4.2.0
 python-multipart==0.0.9
 httpx==0.27.0
 email-validator==2.2.0
+
+# Phase 2 — market data + portfolio optimization
+yfinance==0.2.40
+numpy==1.26.4
+scipy==1.13.1
+websockets==12.0
+
+# Phase 3 — AI Brain
+xgboost==2.0.3
+scikit-learn==1.4.2
+statsmodels>=0.14.4
+nltk==3.8.1
+feedparser==6.0.11
+onnxruntime==1.18.0
+skl2onnx==1.17.0
+sentence-transformers==3.0.1
+anthropic==0.28.0
+
+# Phase 4 — Security + Production
+pyotp==2.9.0
+qrcode[pil]==7.4.2
+webauthn==2.1.0
+structlog==24.2.0
+prometheus-fastapi-instrumentator==7.0.0

@@ -6,8 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import auth, health, transactions
+from app.api import auth, health, market, mfa, ml, optimizer, portfolio, transactions
 from app.core.config import settings
+from app.core.logging_config import configure_logging
+from app.core.metrics import instrument_app
+
+configure_logging(level="INFO" if settings.environment == "production" else "DEBUG")
 
 
 def create_app() -> FastAPI:
@@ -28,7 +32,15 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(mfa.router)
     app.include_router(transactions.router)
+    app.include_router(market.router)
+    app.include_router(portfolio.router)
+    app.include_router(optimizer.router)
+    app.include_router(ml.router)
+
+    # Prometheus /metrics endpoint
+    instrument_app(app)
 
     @app.get("/", tags=["root"])
     async def root() -> dict[str, str]:

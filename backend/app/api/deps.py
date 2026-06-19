@@ -5,11 +5,11 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db, set_rls_user
+from app.core.database import SessionLocal, get_db, set_rls_user
 from app.core.redis_client import is_blacklisted, rate_limit_ok
 from app.core.security import decode_token
 from app.models.user import User
@@ -61,3 +61,25 @@ def rate_limit(
             )
 
     return _dep
+
+
+async def ws_authenticate(websocket: WebSocket, token: str) -> User | None:
+    """Validate an access token for a WebSocket connection.
+
+    Returns the authenticated User, or None if the token is invalid/missing.
+    Callers should close the socket with WS_1008_POLICY_VIOLATION on None.
+    """
+    try:
+        payload = decode_token(token, expected_type="access")
+    except ValueError:
+        return None
+
+    if await is_blacklisted(payload["jti"]):
+        return None
+
+    async with SessionLocal() as session:
+        user = await auth_service.get_user_by_id(session, uuid.UUID(payload["sub"]))
+
+    if user is None or not user.is_active:
+        return None
+    return user

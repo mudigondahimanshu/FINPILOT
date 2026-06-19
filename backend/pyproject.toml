@@ -27,7 +27,7 @@ extend-immutable-calls = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S"]
+"tests/*" = ["S", "E501"]
 "alembic/*" = ["UP035", "UP007", "E501"]  # generated migration style
 
 [tool.mypy]

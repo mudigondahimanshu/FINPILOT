@@ -5,9 +5,11 @@ from app.models.audit_log import AuditLog
 from app.models.budget import Budget
 from app.models.category import Category
 from app.models.embedding import Embedding
+from app.models.ohlc import OHLC
 from app.models.portfolio import Portfolio, Trade
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.models.watchlist import Watchlist
 
 __all__ = [
     "User",
@@ -19,4 +21,6 @@ __all__ = [
     "Trade",
     "AuditLog",
     "Embedding",
+    "OHLC",
+    "Watchlist",
 ]

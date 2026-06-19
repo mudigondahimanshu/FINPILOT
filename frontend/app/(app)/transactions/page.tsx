@@ -118,6 +118,7 @@ export default function TransactionsPage() {
             onPageChange={(p) => setFilters((f) => ({ ...f, page: p }))}
             onEdit={(t) => { setEditing(t); setShowAdd(true); }}
             onDelete={handleDelete}
+            onCategoryChanged={fetchAll}
           />
         )}
       </div>

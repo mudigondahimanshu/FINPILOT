@@ -1,0 +1,149 @@
+# FinPilot — production Docker Compose.
+# Differences from dev: no volume mounts, no --reload, gunicorn workers,
+# Prometheus + Grafana sidecar, no port exposure (Nginx terminates TLS).
+
+name: finpilot-prod
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg15
+    container_name: finpilot-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/home/postgres/pgdata/data
+      - ./infra/docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    container_name: finpilot-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      retries: 5
+    networks: [internal]
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: prod
+    image: finpilot-backend:${IMAGE_TAG:-latest}
+    container_name: finpilot-backend
+    restart: always
+    env_file: .env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Expose only on internal network — nginx proxies from 443
+    expose: ["8000"]
+    command:
+      - "sh"
+      - "-c"
+      - "alembic upgrade head && gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --access-logfile - --error-logfile -"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks: [internal]
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: prod
+    image: finpilot-backend:${IMAGE_TAG:-latest}
+    container_name: finpilot-worker
+    restart: always
+    env_file: .env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.core.celery_app.celery", "worker", "--loglevel=info", "--concurrency=2"]
+    networks: [internal]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: prod
+    image: finpilot-frontend:${IMAGE_TAG:-latest}
+    container_name: finpilot-frontend
+    restart: always
+    env_file: .env.prod
+    expose: ["3000"]
+    networks: [internal]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: finpilot-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/docker/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+      - frontend
+    networks: [internal, external]
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: finpilot-prometheus
+    restart: always
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    expose: ["9090"]
+    networks: [internal]
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: finpilot-grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    expose: ["3001"]
+    depends_on: [prometheus]
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge
+
+volumes:
+  db_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

@@ -46,9 +46,24 @@ class Settings(BaseSettings):
     # CORS allow-list (comma-separated in env)
     cors_origins: str = Field(default="http://localhost:3000")
 
+    # Market data
+    finnhub_api_key: str = Field(default="")
+    alpha_vantage_key: str = Field(default="")
+    market_data_cache_ttl: int = Field(default=60)  # seconds
+
+    # Phase 3 — AI Brain
+    anthropic_api_key: str = Field(default="")
+    hf_api_key: str = Field(default="")             # HuggingFace Inference API key
+    ml_models_dir: str = Field(default="/app/models")
+    bandit_epsilon: float = Field(default=0.15)
+
     @property
     def google_oauth_configured(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret)
+
+    @property
+    def finnhub_configured(self) -> bool:
+        return bool(self.finnhub_api_key)
 
     @property
     def cors_origin_list(self) -> list[str]:

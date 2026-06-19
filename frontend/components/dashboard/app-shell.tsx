@@ -4,11 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bot,
+  BarChart2,
+  CandlestickChart,
   LayoutDashboard,
   LineChart,
   LogOut,
-  ShieldCheck,
+  Sparkles,
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -18,9 +19,10 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 const nav = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
   { icon: Wallet, label: "Spending", href: "/transactions" },
-  { icon: LineChart, label: "Paper trading", href: null },
-  { icon: Bot, label: "Copilot", href: null },
-  { icon: ShieldCheck, label: "Fraud guard", href: null },
+  { icon: CandlestickChart, label: "Market", href: "/market" },
+  { icon: BarChart2, label: "Paper trading", href: "/trading" },
+  { icon: LineChart, label: "Optimizer", href: "/optimize" },
+  { icon: Sparkles, label: "AI Insights", href: "/insights" },
 ];
 
 function initials(name: string | null, email: string): string {

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from app.models.category import Category
     from app.models.portfolio import Portfolio, Trade
     from app.models.transaction import Transaction
+    from app.models.watchlist import Watchlist
 
 
 class User(Base):
@@ -47,6 +48,10 @@ class User(Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # MFA — TOTP (RFC 6238)
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -76,6 +81,9 @@ class User(Base):
     )
     trades: Mapped[list[Trade]] = relationship(
         "Trade", back_populates="user", cascade="all, delete-orphan"
+    )
+    watchlist: Mapped[list[Watchlist]] = relationship(
+        "Watchlist", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:  # pragma: no cover

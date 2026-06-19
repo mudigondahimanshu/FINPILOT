@@ -360,6 +360,94 @@ async def budget_status(
 
 # ── Subscription / recurring detector ────────────────────────────────────────
 
+async def list_uncategorised(session: AsyncSession, user_id: uuid.UUID) -> list[dict]:
+    """Return transactions with no category assigned (category_id IS NULL)."""
+    await set_rls_user(session, user_id)
+    q = text(
+        """
+        SELECT id::text, date::text, description, merchant, amount::float
+          FROM transactions
+         WHERE user_id = :uid AND category_id IS NULL
+         ORDER BY date DESC
+         LIMIT 500
+        """
+    )
+    rows = (await session.execute(q, {"uid": str(user_id)})).mappings().all()
+    return [dict(r) for r in rows]
+
+
+async def apply_classifications(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    rows: list[dict],
+    predictions: list[dict],
+) -> int:
+    """Apply classifier predictions to uncategorised transactions.
+
+    Looks up category_id by name and updates the transaction row.
+    Returns count of successfully updated transactions.
+    """
+    await set_rls_user(session, user_id)
+    # Build category name → id mapping
+    cat_rows = (await session.execute(text("SELECT id, name FROM categories"))).fetchall()
+    cat_map = {r.name: str(r.id) for r in cat_rows}
+
+    updated = 0
+    for txn, pred in zip(rows, predictions, strict=False):
+        cat_name = pred.get("category", "Other")
+        cat_id = cat_map.get(cat_name)
+        if not cat_id:
+            continue
+        await session.execute(
+            text("UPDATE transactions SET category_id = :cid WHERE id = :tid AND user_id = :uid"),
+            {"cid": cat_id, "tid": txn["id"], "uid": str(user_id)},
+        )
+        updated += 1
+    await session.commit()
+    return updated
+
+
+async def daily_spend_series(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    days: int = 90,
+) -> list[float]:
+    """Return absolute daily spend totals (debit only) as a list of floats."""
+    await set_rls_user(session, user_id)
+    q = text(
+        """
+        SELECT date, ABS(SUM(amount))::float AS total
+          FROM transactions
+         WHERE user_id = :uid AND amount < 0
+           AND date >= CURRENT_DATE - :days * INTERVAL '1 day'
+         GROUP BY date
+         ORDER BY date
+        """
+    )
+    rows = (await session.execute(q, {"uid": str(user_id), "days": days})).fetchall()
+    return [float(r.total) for r in rows]
+
+
+async def list_all_for_fraud(
+    session: AsyncSession, user_id: uuid.UUID, limit: int = 2000
+) -> list[dict]:
+    """Return recent transactions as plain dicts for graph-based anomaly detection."""
+    await set_rls_user(session, user_id)
+    q = text(
+        """
+        SELECT
+            id::text, date::text, description, merchant,
+            amount::float, category_id::text
+        FROM transactions
+        WHERE user_id = :uid
+        ORDER BY date DESC
+        LIMIT :lim
+        """
+    )
+    rows = (await session.execute(q, {"uid": str(user_id), "lim": limit})).mappings().all()
+    return [dict(r) for r in rows]
+
+
 async def detect_recurring(
     session: AsyncSession, user_id: uuid.UUID
 ) -> list[dict]:

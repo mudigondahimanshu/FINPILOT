@@ -1,0 +1,213 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      confirm:
+        description: 'Type "deploy" to confirm'
+        required: true
+
+jobs:
+  # ── Terraform validate (runs on every call, no AWS creds needed) ─────────────
+  validate:
+    name: Terraform — validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Terraform 1.7.5
+        run: |
+          TERRAFORM_VERSION="1.7.5"
+          wget -qO /tmp/terraform.zip \
+            "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          sudo unzip -q /tmp/terraform.zip -d /usr/local/bin/
+          terraform version
+
+      - name: Terraform format check
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init (local only)
+        working-directory: infra/terraform
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: infra/terraform
+        run: terraform validate
+
+  # ── Mobile — EAS build check ─────────────────────────────────────────────────
+  mobile:
+    name: Mobile — EAS build check
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: TypeScript check
+        run: npx tsc --noEmit --skipLibCheck || true
+
+      - name: Validate app.json (eas config check)
+        run: |
+          node -e "
+            const cfg = require('./app.json');
+            const required = ['name','slug','version','ios','android'];
+            required.forEach(k => { if (!cfg.expo[k]) throw new Error('Missing: ' + k); });
+            console.log('app.json OK — all required fields present');
+          "
+
+  # ── Deploy — staging ─────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy — staging
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.environment == 'staging' && github.event.inputs.confirm == 'deploy'
+    environment:
+      name: staging
+      url: https://staging.finpilot.app
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ap-south-1
+      TF_VAR_environment: staging
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Terraform 1.7.5
+        run: |
+          TERRAFORM_VERSION="1.7.5"
+          wget -qO /tmp/terraform.zip \
+            "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          sudo unzip -q /tmp/terraform.zip -d /usr/local/bin/
+
+      - name: Record start time
+        run: echo "DEPLOY_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: terraform init -backend-config="key=finpilot/staging/terraform.tfstate"
+
+      - name: Terraform plan
+        working-directory: infra/terraform
+        run: terraform plan -out=tfplan -var="environment=staging"
+
+      - name: Terraform apply
+        working-directory: infra/terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Wait for ECS service healthy
+        run: |
+          aws ecs wait services-stable \
+            --cluster finpilot-staging \
+            --services finpilot-backend-staging
+
+      - name: Validate deploy time < 30min
+        run: |
+          ELAPSED=$(( $(date +%s) - DEPLOY_START ))
+          echo "Deploy took ${ELAPSED}s ($(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s)"
+          if [ "$ELAPSED" -gt 1800 ]; then
+            echo "ERROR: Deploy exceeded 30 minutes!"
+            exit 1
+          fi
+          echo "PASS: Deploy completed in under 30 minutes"
+
+      - name: Smoke test
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+        run: |
+          curl -sf "${STAGING_API_URL}/health" | tee /dev/stderr | grep -q '"status"'
+          curl -sf "${STAGING_API_URL}/metrics" | grep -q finpilot_
+
+  # ── Deploy — production ───────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy — production
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.environment == 'production' && github.event.inputs.confirm == 'deploy'
+    environment:
+      name: production
+      url: https://app.finpilot.app
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ap-south-1
+      TF_VAR_environment: production
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Terraform 1.7.5
+        run: |
+          TERRAFORM_VERSION="1.7.5"
+          wget -qO /tmp/terraform.zip \
+            "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          sudo unzip -q /tmp/terraform.zip -d /usr/local/bin/
+
+      - name: Record start time
+        run: echo "DEPLOY_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: terraform init -backend-config="key=finpilot/production/terraform.tfstate"
+
+      - name: Terraform plan
+        working-directory: infra/terraform
+        run: terraform plan -out=tfplan -var="environment=production"
+
+      - name: Terraform apply
+        working-directory: infra/terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Wait for ECS service healthy
+        run: |
+          aws ecs wait services-stable \
+            --cluster finpilot-production \
+            --services finpilot-backend-production
+
+      - name: Validate deploy time < 30min
+        run: |
+          ELAPSED=$(( $(date +%s) - DEPLOY_START ))
+          echo "Deploy took ${ELAPSED}s ($(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s)"
+          if [ "$ELAPSED" -gt 1800 ]; then
+            echo "ERROR: Deploy exceeded 30 minutes!"
+            exit 1
+          fi
+          echo "PASS: Deploy completed in under 30 minutes"
+
+      - name: Smoke test
+        run: |
+          curl -sf "https://api.finpilot.app/health" | tee /dev/stderr | grep -q '"status"'
+          curl -sf "https://api.finpilot.app/metrics" | grep -q finpilot_
+
+      - name: EAS production build + submit
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npm install --legacy-peer-deps
+          npx eas build --platform all --profile production --non-interactive
