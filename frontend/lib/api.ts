@@ -530,6 +530,7 @@ export interface CopilotResponse {
   sources: CopilotSource[];
   reasoning?: string;
   model: string;
+  personalized?: boolean;
 }
 
 export interface FraudResult {

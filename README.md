@@ -154,7 +154,7 @@
 - [x] Store embeddings in pgvector
 - [x] Semantic retrieval (top-5 relevant chunks per query)
 - [x] Fine-tune 7B Mistral with LoRA on financial Q&A dataset _(QLoRA/4-bit SFTTrainer script in scripts/finetune_mistral_lora.py; GPU required to run)_
-- [x] RAG chain _(retrieve → Claude Haiku → answer with citations)_
+- [x] RAG chain _(retrieve → inject user's spending/budgets/risk/portfolio context → Claude Haiku → personalized answer with citations; per-user profile auto-refreshes on new transactions)_
 - [x] Chat UI with conversation history _(AI Insights page)_
 - [x] Reasoning display ("I said this because...") _(collapsible "Why I said this" in chat widget)_
 - [x] Thumbs up/down feedback logging _(POST /ml/copilot/feedback → copilot_feedback table)_

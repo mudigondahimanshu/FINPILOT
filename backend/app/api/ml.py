@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, rate_limit
 from app.core.database import get_db
-from app.ml import ab_testing, classifier, forecaster, fraud_detector, rag, sentiment
+from app.ml import ab_testing, classifier, forecaster, fraud_detector, rag, sentiment, user_context
 from app.ml import user_preferences as user_prefs
 from app.ml.bandit import log_feedback, recommend
 from app.models.user import User
@@ -158,13 +158,19 @@ class IngestRequest(BaseModel):
 @router.post("/copilot/chat", dependencies=[Depends(rate_limit(20, 60, "copilot"))])
 async def copilot_chat(
     body: ChatRequest,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
-    """RAG-powered financial Q&A. Retrieves relevant docs then calls Claude Haiku."""
+    """Personalized RAG financial Q&A.
+
+    Retrieves relevant knowledge-base docs, builds a snapshot of the caller's own
+    finances (spending, budgets, risk profile, portfolio), then calls Claude Haiku
+    so the answer is grounded in both the documents and the user's real data.
+    """
     if not body.question.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Question cannot be empty")
-    return await rag.answer(session, body.question, body.history)
+    financial_context = await user_context.build_financial_context(session, current_user.id)
+    return await rag.answer(session, body.question, body.history, financial_context)
 
 
 @router.post("/copilot/ingest", dependencies=[Depends(rate_limit(5, 60, "ingest"))])

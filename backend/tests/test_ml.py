@@ -303,6 +303,43 @@ class TestUserPreferences:
         assert _infer_risk_profile(weights) == "moderate"
 
 
+# ── 3.5 Personalized copilot ──────────────────────────────────────────────────
+
+class TestPersonalizedCopilot:
+    """rag.answer threads the user's financial context through and flags it."""
+
+    @staticmethod
+    def _run_answer(user_context: str | None):
+        import asyncio
+        from unittest.mock import patch
+
+        from app.ml import rag
+
+        async def fake_retrieve(_session, _query, k=5):  # noqa: ARG001
+            return []
+
+        # Force the template path (no API key) and stub retrieval (no DB/embedder).
+        with patch.object(rag, "retrieve", fake_retrieve), \
+             patch.object(rag, "_ANTHROPIC_KEY", ""):
+            return asyncio.run(
+                rag.answer(session=None, question="How am I doing?",
+                           history=[], user_context=user_context)
+            )
+
+    def test_personalized_flag_true_with_context(self) -> None:
+        ctx = "USER FINANCIAL PROFILE:\n- Income: ₹50,000; Savings rate: 98%"
+        result = self._run_answer(ctx)
+        assert result["personalized"] is True
+        # The user's real data is surfaced in the (template) answer.
+        assert "50,000" in result["answer"]
+        assert "personalized" in result["reasoning"].lower()
+
+    def test_personalized_flag_false_without_context(self) -> None:
+        result = self._run_answer(None)
+        assert result["personalized"] is False
+        assert "personalized" not in result["reasoning"].lower()
+
+
 # ── 3.4 Geolocation anomaly ───────────────────────────────────────────────────
 
 class TestGeolocationAnomaly:

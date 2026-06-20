@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bot, Loader2, Send, ThumbsDown, ThumbsUp, User } from "lucide-react";
+import { Bot, Loader2, Send, Sparkles, ThumbsDown, ThumbsUp, User } from "lucide-react";
 import { copilotChat, submitCopilotFeedback } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +12,7 @@ interface Message {
   reasoning?: string;
   sources?: { id: string; content: string; similarity: number }[];
   feedback?: "up" | "down" | null;
+  personalized?: boolean;
 }
 
 const STARTERS = [
@@ -63,6 +64,7 @@ export function ChatWidget() {
           reasoning: res.reasoning,
           sources: res.sources,
           feedback: null,
+          personalized: res.personalized,
         },
       ]);
     } catch (err) {
@@ -89,7 +91,7 @@ export function ChatWidget() {
             <p className="text-center text-sm text-muted-foreground">
               Ask FinPilot anything about your finances.
               <br />
-              Answers are grounded in retrieved documents.
+              Answers are tailored to your spending, budgets &amp; portfolio.
             </p>
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 w-full max-w-sm">
               {STARTERS.map((s) => (
@@ -121,6 +123,14 @@ export function ChatWidget() {
                     : "bg-secondary text-foreground"
                 }`}
               >
+                {/* Personalized badge — answer used the user's own financial data */}
+                {m.role === "assistant" && m.personalized && (
+                  <span className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-medium text-primary">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Personalized to your finances
+                  </span>
+                )}
+
                 <p className="whitespace-pre-wrap">{m.content}</p>
 
                 {/* Reasoning display */}

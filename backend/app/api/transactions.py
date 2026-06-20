@@ -6,7 +6,16 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +26,7 @@ from app.core.transaction_graph import (
     duplicate_transactions,
     round_number_anomalies,
 )
+from app.ml import user_preferences as user_prefs
 from app.models.user import User
 from app.schemas.transaction import (
     BudgetStatus,
@@ -67,10 +77,13 @@ async def list_transactions(
 @router.post("", response_model=TransactionRead, status_code=status.HTTP_201_CREATED)
 async def create_transaction(
     data: TransactionCreate,
+    background: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> TransactionRead:
     txn = await transaction_service.create_transaction(session, current_user.id, data)
+    # Keep the personalized copilot / recommender current with the new activity.
+    background.add_task(user_prefs.refresh_in_background, current_user.id)
     return TransactionRead.model_validate(txn)
 
 
@@ -119,6 +132,7 @@ async def delete_transaction(
     dependencies=[Depends(rate_limit(10, 60, "csv_import"))],
 )
 async def upload_csv(
+    background: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
@@ -128,7 +142,10 @@ async def upload_csv(
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:  # 5 MB limit
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File exceeds 5 MB")
-    return await transaction_service.import_csv(session, current_user.id, content)
+    result = await transaction_service.import_csv(session, current_user.id, content)
+    # A bulk import changes the spending profile materially — refresh in the background.
+    background.add_task(user_prefs.refresh_in_background, current_user.id)
+    return result
 
 
 # ── Aggregations ───────────────────────────────────────────────────────────────

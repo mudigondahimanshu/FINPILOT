@@ -136,6 +136,24 @@ async def get_preferences(session: AsyncSession, user_id: uuid.UUID) -> dict | N
     }
 
 
+async def refresh_in_background(user_id: uuid.UUID) -> None:
+    """Recompute a user's preference profile on its own session (best-effort).
+
+    Designed to be scheduled via FastAPI BackgroundTasks after the user adds or
+    imports transactions, so the personalized copilot and recommender stay current
+    without a manual compute call. Never raises — failures are logged and dropped.
+    """
+    from app.core.database import SessionLocal, set_rls_user  # noqa: PLC0415
+
+    try:
+        async with SessionLocal() as session:
+            await set_rls_user(session, user_id)
+            result = await compute_and_store(session, user_id)
+        log.info("Preference profile refreshed for %s: %s", user_id, result.get("status"))
+    except Exception as exc:
+        log.warning("Background preference refresh failed for %s: %s", user_id, exc)
+
+
 def _embed_texts(texts: list[str]) -> list[float]:
     """Return mean-pooled embedding vector over *texts*."""
     try:

@@ -1,5 +1,39 @@
 # FinPilot Dev Log
 
+## 2026-06-19 — Personalized AI Copilot (per-user grounding + auto-refresh)
+
+**Closed the gap between "RAG chatbot" and "copilot that knows YOUR finances."** Previously the copilot authenticated the user but discarded them — it answered every user identically from a shared document knowledge base. Now each answer is grounded in the caller's real financial data.
+
+### Per-user financial context (`app/ml/user_context.py`)
+
+`build_financial_context(session, user_id)` assembles a compact natural-language snapshot from the user's own data:
+- **Spending** — all-time income/expenses, savings rate, top 5 expense categories (from `transaction_service.spending_summary`)
+- **Risk profile** — inferred conservative/moderate/aggressive (from `user_preferences`)
+- **Budgets** — count, which are over budget, which are near their alert threshold
+- **Portfolio** — cash balance, open holdings, total P&L (from `portfolio_service.get_portfolio_summary`)
+
+Every section is best-effort: a failed query or missing data skips that section rather than failing the chat request.
+
+### Wiring (`app/ml/rag.py`, `app/api/ml.py`)
+
+`rag.answer(...)` now accepts an optional `user_context` string. When present it's injected into the Claude Haiku prompt and the system prompt shifts from *"never give personalised advice"* to *"tailor your answer to the user's actual spending/budgets/risk/portfolio; give educational, data-grounded guidance."* Responses carry a `personalized: bool` flag. The `/ml/copilot/chat` endpoint builds the context from `current_user` and passes it through (the user is no longer discarded).
+
+### Auto-refresh on activity (`app/ml/user_preferences.py`, `app/api/transactions.py`)
+
+`refresh_in_background(user_id)` recomputes the per-user spending embedding + category weights + risk profile on its own DB session. It's scheduled via FastAPI `BackgroundTasks` after `POST /transactions` and `POST /transactions/import/csv`, so the profile stays current as the user transacts — no manual `POST /ml/preferences/compute` needed.
+
+### Frontend (`components/ml/chat-widget.tsx`, `lib/api.ts`)
+
+`CopilotResponse.personalized` surfaced; assistant messages show a "Personalized to your finances" badge with a Sparkles icon when the answer used the user's data. Empty-state copy updated.
+
+### Validation
+
+- Live E2E (Docker): registered user → added 3 transactions → `/ml/copilot/chat` returned `personalized: true` with the user's real numbers (₹50,000 income, 98% savings rate, ₹100,000 portfolio) embedded in the answer.
+- 2 new unit tests (`TestPersonalizedCopilot`): personalized flag true/false + context surfaced in answer. **90 backend unit tests pass.**
+- ruff ✓ mypy (5 files) ✓ frontend tsc ✓ next build ✓
+
+---
+
 ## 2026-06-19 — Phase 4 100% Complete: All Items Ticked
 
 **All 4 remaining unchecked items completed. README Phase 4 is now fully green.**

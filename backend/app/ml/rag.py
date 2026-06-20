@@ -137,51 +137,79 @@ async def answer(
     session: AsyncSession,
     question: str,
     history: list[dict] | None = None,
+    user_context: str | None = None,
 ) -> dict:
-    """Retrieve relevant chunks then generate a grounded answer."""
+    """Retrieve relevant chunks then generate a grounded, personalized answer.
+
+    *user_context* is an optional natural-language snapshot of the signed-in
+    user's finances (spending, budgets, risk profile, portfolio). When provided,
+    the copilot tailors its answer to the user's actual data.
+    """
     chunks = await retrieve(session, question)
     context = "\n\n".join(f"[{i+1}] {c['content']}" for i, c in enumerate(chunks))
     sources = [{"id": str(i + 1), **c} for i, c in enumerate(chunks)]
 
+    personalized = bool(user_context)
+
     # Build reasoning: explain which sources informed the answer
+    reason_parts: list[str] = []
     if chunks:
         top_sim = chunks[0]["similarity"]
-        reasoning = (
-            f"Found {len(chunks)} relevant document chunk(s) with top similarity {top_sim:.2f}. "
-            f"Answer grounded in: {', '.join(f'[{i+1}]' for i in range(len(chunks)))}."
+        reason_parts.append(
+            f"Found {len(chunks)} relevant document chunk(s) with top similarity {top_sim:.2f}, "
+            f"grounded in: {', '.join(f'[{i+1}]' for i in range(len(chunks)))}."
         )
     else:
-        reasoning = "No relevant documents found in the knowledge base for this query."
+        reason_parts.append("No matching knowledge-base documents for this query.")
+    if personalized:
+        reason_parts.append("Answer personalized using your spending, budgets, and portfolio.")
+    reasoning = " ".join(reason_parts)
 
     if not _ANTHROPIC_KEY:
         return {
-            "answer": _template_answer(question, chunks),
+            "answer": _template_answer(question, chunks, user_context),
             "sources": sources,
             "reasoning": reasoning,
             "model": "template",
+            "personalized": personalized,
         }
 
     answer_text = await asyncio.to_thread(
-        _claude_generate, question, context, history or []
+        _claude_generate, question, context, history or [], user_context
     )
     return {
         "answer": answer_text, "sources": sources,
         "reasoning": reasoning, "model": "claude-haiku",
+        "personalized": personalized,
     }
 
 
-def _claude_generate(question: str, context: str, history: list[dict]) -> str:
+def _claude_generate(
+    question: str,
+    context: str,
+    history: list[dict],
+    user_context: str | None = None,
+) -> str:
     import anthropic  # noqa: PLC0415
 
     client = anthropic.Anthropic(api_key=_ANTHROPIC_KEY)
     system = (
-        "You are FinPilot, an AI financial copilot. Answer questions using ONLY the provided "
-        "context. Cite sources as [1], [2], etc. If the context doesn't contain the answer, "
-        "say so. Never give personalised investment advice."
+        "You are FinPilot, a personalized AI financial copilot. You are given (a) retrieved "
+        "knowledge-base context and (b) the user's own financial profile. Tailor your answer "
+        "to the user's actual spending, budgets, risk profile, and portfolio when relevant, "
+        "and reference their real numbers. Cite knowledge-base sources as [1], [2], etc. "
+        "Give educational, data-grounded guidance — explain trade-offs and general principles "
+        "rather than issuing licensed investment advice, and remind the user to do their own "
+        "research for specific buy/sell decisions. If you lack the data to answer, say so."
     )
+    user_block = f"Context:\n{context}\n\n"
+    if user_context:
+        user_block += f"{user_context}\n\n"
+    user_block += f"Question: {question}"
+
     messages = [
         *[{"role": m["role"], "content": m["content"]} for m in history[-6:]],
-        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+        {"role": "user", "content": user_block},
     ]
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -192,11 +220,22 @@ def _claude_generate(question: str, context: str, history: list[dict]) -> str:
     return response.content[0].text
 
 
-def _template_answer(question: str, chunks: list[dict]) -> str:
+def _template_answer(
+    question: str, chunks: list[dict], user_context: str | None = None
+) -> str:
+    prefix = ""
+    if user_context:
+        prefix = (
+            "Here's a snapshot of your finances I'd use to tailor this answer:\n"
+            f"{user_context}\n\n"
+        )
     if not chunks:
-        return "I don't have relevant information to answer that question."
+        return (
+            prefix + "I don't have relevant knowledge-base information to answer that.\n\n"
+            "(Set ANTHROPIC_API_KEY for full AI-powered, personalized answers.)"
+        )
     top = chunks[0]["content"][:300]
     return (
-        f"Based on available documentation: {top}...\n\n"
-        "(Set ANTHROPIC_API_KEY for full AI-powered answers.)"
+        f"{prefix}Based on available documentation: {top}...\n\n"
+        "(Set ANTHROPIC_API_KEY for full AI-powered, personalized answers.)"
     )
