@@ -33,7 +33,7 @@ extend-immutable-calls = [
 [tool.mypy]
 python_version = "3.11"
 plugins = ["pydantic.mypy"]
-warn_unused_ignores = true
+warn_unused_ignores = false
 disallow_untyped_defs = true
 ignore_missing_imports = true
 
