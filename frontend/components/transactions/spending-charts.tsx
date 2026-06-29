@@ -73,7 +73,7 @@ export function SpendingCharts({ summary }: Props) {
               </Pie>
               <Tooltip
                 formatter={(v: number) => [fmt(v), ""]}
-                contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }}
+                contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, color: "hsl(0 0% 95%)" }}
                 labelStyle={{ color: "hsl(0 0% 96%)", fontWeight: 500 }}
                 itemStyle={{ color: "hsl(0 0% 80%)" }}
               />
@@ -99,7 +99,7 @@ export function SpendingCharts({ summary }: Props) {
               <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} width={50} />
               <Tooltip
                 formatter={(v: number, name: string) => [fmt(v), name]}
-                contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }}
+                contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, color: "hsl(0 0% 95%)" }}
                 labelStyle={{ color: "hsl(0 0% 96%)", fontWeight: 500 }}
                 itemStyle={{ color: "hsl(0 0% 80%)" }}
               />

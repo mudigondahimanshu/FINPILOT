@@ -50,7 +50,7 @@ function AllocationDonut({ alloc, title }: { alloc: Allocation; title: string })
           <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2}>
             {data.map((e, i) => <Cell key={i} fill={e.color} />)}
           </Pie>
-          <Tooltip formatter={(v: number) => [`${v}%`, ""]} contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }} />
+          <Tooltip formatter={(v: number) => [`${v}%`, ""]} contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, color: "hsl(0 0% 95%)" }} />
           <Legend iconType="circle" iconSize={7} formatter={(v) => <span className="text-xs text-muted-foreground">{v}</span>} />
         </PieChart>
       </ResponsiveContainer>
@@ -176,7 +176,7 @@ export default function OptimizePage() {
                   <Tooltip
                     cursor={{ strokeDasharray: "3 3", stroke: "hsl(0 0% 40%)" }}
                     formatter={(v: number, name: string) => [name === "ret" ? `${v.toFixed(2)}%` : `${v.toFixed(2)}%`, name === "ret" ? "Return" : "Volatility"]}
-                    contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 20%)", borderRadius: 8 }}
+                    contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 20%)", borderRadius: 8, color: "hsl(0 0% 95%)" }}
                   />
                   <Scatter data={frontierData} fill="#6366F1" fillOpacity={0.6} />
                 </ScatterChart>
