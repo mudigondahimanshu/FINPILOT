@@ -21,6 +21,45 @@ import { AlertCircle, Loader2, Plus, X } from "lucide-react";
 const PRESET_SYMBOLS = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "BHARTIARTL.NS"];
 const COLORS = ["#6366F1", "#22C55E", "#F59E0B", "#EC4899", "#3B82F6", "#8B5CF6", "#06B6D4", "#EF4444"];
 
+// Custom tooltip with white text
+function ScatterTooltip({ active, payload }: any) {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{
+        background: "hsl(0 0% 10%)",
+        border: "1px solid hsl(0 0% 20%)",
+        borderRadius: 8,
+        padding: "8px 12px",
+      }}>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} style={{ color: "#ffffff", fontSize: 13, marginBottom: i < payload.length - 1 ? 4 : 0 }}>
+            <span style={{ fontWeight: 500 }}>{entry.name}:</span> {entry.value.toFixed(2)}%
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
+function PieTooltip({ active, payload }: any) {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{
+        background: "hsl(0 0% 10%)",
+        border: "1px solid hsl(0 0% 16%)",
+        borderRadius: 8,
+        padding: "8px 12px",
+      }}>
+        <div style={{ color: "#ffffff", fontSize: 13 }}>
+          <span style={{ fontWeight: 500 }}>{payload[0].name}:</span> {payload[0].value}%
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 function AllocationDonut({ alloc, title }: { alloc: Allocation; title: string }) {
   const data = Object.entries(alloc.weights)
     .filter(([, w]) => w > 0.01)
@@ -50,7 +89,7 @@ function AllocationDonut({ alloc, title }: { alloc: Allocation; title: string })
           <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2}>
             {data.map((e, i) => <Cell key={i} fill={e.color} />)}
           </Pie>
-          <Tooltip formatter={(v: number) => [`${v}%`, ""]} contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, color: "#ffffff" }} />
+          <Tooltip content={<PieTooltip />} />
           <Legend iconType="circle" iconSize={7} formatter={(v) => <span className="text-xs text-muted-foreground">{v}</span>} />
         </PieChart>
       </ResponsiveContainer>
@@ -173,11 +212,7 @@ export default function OptimizePage() {
                     tickLine={false}
                     label={{ value: "Annual Return (%)", angle: -90, position: "insideLeft", offset: 10, fontSize: 12, fill: "hsl(0 0% 55%)" }}
                   />
-                  <Tooltip
-                    cursor={{ strokeDasharray: "3 3", stroke: "hsl(0 0% 40%)" }}
-                    formatter={(v: number, name: string) => [name === "ret" ? `${v.toFixed(2)}%` : `${v.toFixed(2)}%`, name === "ret" ? "Return" : "Volatility"]}
-                    contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 20%)", borderRadius: 8, color: "#ffffff" }}
-                  />
+                  <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: "3 3", stroke: "hsl(0 0% 40%)" }} />
                   <Scatter data={frontierData} fill="#6366F1" fillOpacity={0.6} />
                 </ScatterChart>
               </ResponsiveContainer>

@@ -28,6 +28,29 @@ const INTERVALS = [
   { label: "5Y", value: "1wk", period: "5y" },
 ];
 
+function CustomOhlcTooltip({ active, payload, label }: any) {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{
+        background: "hsl(0 0% 10%)",
+        border: "1px solid hsl(0 0% 16%)",
+        borderRadius: 8,
+        padding: "8px 12px",
+      }}>
+        <div style={{ color: "#ffffff", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
+          {label}
+        </div>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} style={{ color: "#ffffff", fontSize: 12, marginBottom: i < payload.length - 1 ? 3 : 0 }}>
+            <span style={{ color: entry.color }}>{entry.name}:</span> {formatINR(entry.value)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
 export function OhlcChart({ data, symbol }: Props) {
   const chartData = data.candles.map((c, i) => ({
     t: new Date(c.timestamp).toLocaleDateString("en-IN", { month: "short", day: "numeric" }),
@@ -69,11 +92,7 @@ export function OhlcChart({ data, symbol }: Props) {
             tickLine={false}
             width={55}
           />
-          <Tooltip
-            formatter={(v: number, name: string) => [formatINR(v), name]}
-            contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, fontSize: 12, color: "#ffffff" }}
-            labelStyle={{ color: "hsl(0 0% 80%)" }}
-          />
+          <Tooltip content={<CustomOhlcTooltip />} />
           <Legend
             iconType="line"
             iconSize={10}
