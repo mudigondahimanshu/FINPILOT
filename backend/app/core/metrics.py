@@ -56,4 +56,4 @@ def instrument_app(app: object) -> None:
         should_ignore_untemplated=True,
         should_group_untemplated=True,
         excluded_handlers=["/metrics", "/health"],
-    ).instrument(app).expose(app, endpoint="/metrics", tags=["observability"])  # type: ignore[arg-type]
+    ).instrument(app).expose(app, endpoint="/metrics", tags=["observability"])

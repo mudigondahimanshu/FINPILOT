@@ -6,7 +6,6 @@ import hashlib
 import re
 import unittest
 
-
 # ── TOTP ──────────────────────────────────────────────────────────────────────
 
 class TestTOTP(unittest.TestCase):
@@ -65,7 +64,7 @@ class TestPII(unittest.TestCase):
         from app.core.pii import hash_ssn  # noqa: PLC0415
         result = hash_ssn("1234-5678-9012")
         assert len(result) == 64
-        assert result == hashlib.sha256("123456789012".encode()).hexdigest()
+        assert result == hashlib.sha256(b"123456789012").hexdigest()
 
     def test_detect_and_mask_replaces_card(self) -> None:
         from app.core.pii import detect_and_mask  # noqa: PLC0415

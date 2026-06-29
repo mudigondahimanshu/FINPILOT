@@ -119,7 +119,7 @@ async def execute_order(
     session.add(trade)
     await session.commit()
     await session.refresh(trade)
-    return TradeRead.model_validate(trade)
+    return TradeRead.model_validate(trade)  # type: ignore[attr-defined]
 
 
 # ── Holdings & P&L ────────────────────────────────────────────────────────────
@@ -243,4 +243,4 @@ async def list_trades(
         .limit(limit)
         .offset(offset)
     )
-    return [TradeRead.model_validate(t) for t in result.scalars()]
+    return [TradeRead.model_validate(t) for t in result.scalars()]  # type: ignore[attr-defined]

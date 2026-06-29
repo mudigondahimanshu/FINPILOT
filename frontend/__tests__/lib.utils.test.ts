@@ -20,7 +20,7 @@ describe("formatINR", () => {
 
   it("rounds decimals", () => {
     // formatINR rounds to nearest rupee
-    expect(formatINR(1234.56)).toMatch(/₹1,234/);
+    expect(formatINR(1234.56)).toMatch(/₹1,235/);
   });
 });
 

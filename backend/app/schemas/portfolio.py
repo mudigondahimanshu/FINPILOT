@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PortfolioRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)  # type: ignore[typeddict-unknown-key]
     id: uuid.UUID
     name: str
     cash_balance: Decimal
@@ -29,7 +29,7 @@ class TradeCreate(BaseModel):
 
 
 class TradeRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)  # type: ignore[typeddict-unknown-key]
     id: uuid.UUID
     portfolio_id: uuid.UUID
     symbol: str

@@ -89,7 +89,7 @@ async def create_transaction(
     session: AsyncSession, user_id: uuid.UUID, data: TransactionCreate
 ) -> Transaction:
     await set_rls_user(session, user_id)
-    txn = Transaction(user_id=user_id, **data.model_dump())
+    txn = Transaction(user_id=user_id, **data.model_dump())  # type: ignore[attr-defined]
     session.add(txn)
     await session.commit()
     await session.refresh(txn)
@@ -105,7 +105,7 @@ async def update_transaction(
     txn = await get_transaction(session, user_id, txn_id)
     if txn is None:
         return None
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in data.model_dump(exclude_none=True).items():  # type: ignore[attr-defined]
         setattr(txn, field, value)
     await session.commit()
     await session.refresh(txn)

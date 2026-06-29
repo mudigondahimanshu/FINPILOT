@@ -87,7 +87,7 @@ async def register(
 
     pair = auth_service.issue_token_pair(user)
     _set_refresh_cookie(response, pair.refresh_token)
-    return AuthResponse(access_token=pair.access_token, user=UserRead.model_validate(user))
+    return AuthResponse(access_token=pair.access_token, user=UserRead.model_validate(user))  # type: ignore[attr-defined]
 
 
 @router.post(
@@ -107,7 +107,7 @@ async def login(
 
     pair = auth_service.issue_token_pair(user)
     _set_refresh_cookie(response, pair.refresh_token)
-    return AuthResponse(access_token=pair.access_token, user=UserRead.model_validate(user))
+    return AuthResponse(access_token=pair.access_token, user=UserRead.model_validate(user))  # type: ignore[attr-defined]
 
 
 @router.post(
@@ -139,7 +139,7 @@ async def refresh(
     access, _ = create_access_token(str(user.id))
     new_refresh, _ = create_refresh_token(str(user.id))
     _set_refresh_cookie(response, new_refresh)
-    return AuthResponse(access_token=access, user=UserRead.model_validate(user))
+    return AuthResponse(access_token=access, user=UserRead.model_validate(user))  # type: ignore[attr-defined]
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -169,7 +169,7 @@ async def logout(
 
 @router.get("/me", response_model=UserRead)
 async def me(current_user: User = Depends(get_current_user)) -> UserRead:
-    return UserRead.model_validate(current_user)
+    return UserRead.model_validate(current_user)  # type: ignore[attr-defined]
 
 
 # ── Google OAuth2 (Authorization Code flow) ──────────────────────────────────

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator  # type: ignore[attr-defined]
 
 
 class RegisterRequest(BaseModel):
@@ -38,7 +38,7 @@ class TokenPair(BaseModel):
 
 
 class UserRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)  # type: ignore[typeddict-unknown-key]
 
     id: uuid.UUID
     email: EmailStr

@@ -11,7 +11,6 @@ Run: python scripts/validate_ml_data.py [--csv path/to/transactions.csv]
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -26,8 +25,13 @@ def build_suite() -> list[dict]:
     """Return a list of GE-compatible expectation configs."""
     return [
         # Column presence
-        {"expectation_type": "expect_table_columns_to_match_ordered_list",
-         "kwargs": {"column_list": ["description", "amount", "date", "category"], "exact_match": False}},
+        {
+            "expectation_type": "expect_table_columns_to_match_ordered_list",
+            "kwargs": {
+                "column_list": ["description", "amount", "date", "category"],
+                "exact_match": False,
+            },
+        },
 
         # description — must be non-null, non-empty strings
         {"expectation_type": "expect_column_values_to_not_be_null",
@@ -61,13 +65,12 @@ def validate_with_ge(csv_path: Path) -> bool:
     """Run Great Expectations validation. Returns True if all critical checks pass."""
     try:
         import great_expectations as gx  # noqa: PLC0415
-        import pandas as pd  # noqa: PLC0415
     except ImportError:
-        print("ERROR: great_expectations and pandas required — pip install great-expectations pandas")
+        print("ERROR: great_expectations and pandas required")
+        print("Run: pip install great-expectations pandas")
         return False
 
     context = gx.get_context()
-    df = pd.read_csv(csv_path)
     ds = context.data_sources.add_pandas(name="transactions")
     asset = ds.add_dataframe_asset(name="train_data")
     batch_def = asset.add_batch_definition_whole_dataframe("batch")
@@ -144,19 +147,27 @@ def validate_simple(csv_path: Path) -> bool:
         print(f"  ... and {len(errors) - 20} more errors")
 
     passed = len(errors) == 0
-    print(f"\nSimple validation: {'✓ PASS' if passed else '✗ FAIL'} ({row_count} rows, {len(errors)} errors)")
+    status = "✓ PASS" if passed else "✗ FAIL"
+    print(f"\nSimple validation: {status} ({row_count} rows, {len(errors)} errors)")
     return passed
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate ML training data quality")
-    parser.add_argument("--csv", type=Path, default=Path("data/transactions_train.csv"))
-    parser.add_argument("--simple", action="store_true", help="Skip Great Expectations; use built-in checks")
+    parser.add_argument(
+        "--csv", type=Path, default=Path("data/transactions_train.csv")
+    )
+    parser.add_argument(
+        "--simple",
+        action="store_true",
+        help="Skip Great Expectations; use built-in checks",
+    )
     args = parser.parse_args()
 
     if not args.csv.exists():
         print(f"ERROR: {args.csv} not found")
-        print("Generate synthetic data with: python scripts/train_classifier.py --generate-data-only")
+        print("Generate synthetic data with:")
+        print("  python scripts/train_classifier.py --generate-data-only")
         sys.exit(1)
 
     if args.simple:

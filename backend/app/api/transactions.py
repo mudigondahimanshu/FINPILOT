@@ -66,7 +66,7 @@ async def list_transactions(
         search=search,
     )
     return TransactionPage(
-        items=[TransactionRead.model_validate(t) for t in items],
+        items=[TransactionRead.model_validate(t) for t in items],  # type: ignore[attr-defined]
         total=total,
         page=page,
         page_size=page_size,
@@ -84,7 +84,7 @@ async def create_transaction(
     txn = await transaction_service.create_transaction(session, current_user.id, data)
     # Keep the personalized copilot / recommender current with the new activity.
     background.add_task(user_prefs.refresh_in_background, current_user.id)
-    return TransactionRead.model_validate(txn)
+    return TransactionRead.model_validate(txn)  # type: ignore[attr-defined]
 
 
 @router.get("/{txn_id}", response_model=TransactionRead)
@@ -96,7 +96,7 @@ async def get_transaction(
     txn = await transaction_service.get_transaction(session, current_user.id, txn_id)
     if txn is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Transaction not found")
-    return TransactionRead.model_validate(txn)
+    return TransactionRead.model_validate(txn)  # type: ignore[attr-defined]
 
 
 @router.patch("/{txn_id}", response_model=TransactionRead)
@@ -109,7 +109,7 @@ async def update_transaction(
     txn = await transaction_service.update_transaction(session, current_user.id, txn_id, data)
     if txn is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Transaction not found")
-    return TransactionRead.model_validate(txn)
+    return TransactionRead.model_validate(txn)  # type: ignore[attr-defined]
 
 
 @router.delete("/{txn_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

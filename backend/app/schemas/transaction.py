@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # ── Category ─────────────────────────────────────────────────────────────────
 
 class CategoryRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)  # type: ignore[typeddict-unknown-key]
 
     id: uuid.UUID
     name: str
@@ -44,7 +44,7 @@ class TransactionUpdate(BaseModel):
 
 
 class TransactionRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)  # type: ignore[typeddict-unknown-key]
 
     id: uuid.UUID
     date: datetime

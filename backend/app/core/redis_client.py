@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-import redis.asyncio as redis
+import redis.asyncio as redis  # type: ignore[import-untyped]
 
 from app.core.config import settings
 
