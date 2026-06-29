@@ -7,7 +7,15 @@ interface Props {
   data: SentimentResult;
 }
 
-function ScoreBadge({ label, score }: { label: string; score: number }) {
+function ScoreBadge({ label, score }: { label: string; score?: number }) {
+  if (score === undefined || score === null) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-medium text-muted-foreground bg-secondary border-border">
+        {label}
+      </span>
+    );
+  }
+
   const color =
     label === "Bullish"
       ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
