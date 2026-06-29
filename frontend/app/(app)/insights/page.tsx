@@ -52,8 +52,10 @@ function SectionCard({
 }
 
 function FraudSummary({ data }: { data: FraudResult }) {
-  const anomalies = data.isolation_forest.filter((r) => r.is_anomaly);
-  const hasIssues = anomalies.length > 0 || data.velocity_flags.length > 0 || data.cycles.length > 0;
+  const anomalies = (data.isolation_forest ?? []).filter((r) => r.is_anomaly);
+  const velocityFlags = data.velocity_flags ?? [];
+  const cycles = data.cycles ?? [];
+  const hasIssues = anomalies.length > 0 || velocityFlags.length > 0 || cycles.length > 0;
 
   if (!hasIssues) {
     return (
@@ -81,7 +83,7 @@ function FraudSummary({ data }: { data: FraudResult }) {
           </div>
         </div>
       )}
-      {data.velocity_flags.map((f, i) => (
+      {velocityFlags.map((f, i) => (
         <div
           key={i}
           className="flex items-start gap-2.5 rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-4 py-3"
@@ -95,7 +97,7 @@ function FraudSummary({ data }: { data: FraudResult }) {
           </div>
         </div>
       ))}
-      {data.cycles.length > 0 && (
+      {cycles.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-md border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 px-4 py-3">
           <AlertTriangle className="h-4 w-4 mt-0.5 text-purple-600 dark:text-purple-400 shrink-0" />
           <div>
@@ -103,7 +105,7 @@ function FraudSummary({ data }: { data: FraudResult }) {
               Circular payment cycle detected
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Money may be cycling between {data.cycles[0]?.join(" → ")}
+              Money may be cycling between {cycles[0]?.join(" → ")}
             </p>
           </div>
         </div>

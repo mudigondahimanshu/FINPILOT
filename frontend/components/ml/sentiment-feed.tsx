@@ -30,7 +30,8 @@ function ScoreBadge({ label, score }: { label: string; score: number }) {
 
 export function SentimentFeed({ data }: Props) {
   const [expanded, setExpanded] = React.useState(false);
-  const shown = expanded ? data.articles : data.articles.slice(0, 4);
+  const articles = data.articles ?? [];
+  const shown = expanded ? articles : articles.slice(0, 4);
 
   return (
     <div className="space-y-3">
@@ -44,7 +45,7 @@ export function SentimentFeed({ data }: Props) {
             <span className="font-mono text-[10px] text-muted-foreground/60">cached</span>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">{data.articles.length} articles</span>
+        <span className="text-xs text-muted-foreground">{articles.length} articles</span>
       </div>
 
       <ul className="space-y-2">
@@ -74,12 +75,12 @@ export function SentimentFeed({ data }: Props) {
         ))}
       </ul>
 
-      {data.articles.length > 4 && (
+      {articles.length > 4 && (
         <button
           onClick={() => setExpanded((e) => !e)}
           className="text-xs text-muted-foreground underline-offset-2 hover:underline"
         >
-          {expanded ? "Show less" : `Show ${data.articles.length - 4} more`}
+          {expanded ? "Show less" : `Show ${articles.length - 4} more`}
         </button>
       )}
     </div>

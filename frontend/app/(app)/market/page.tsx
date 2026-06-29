@@ -19,6 +19,14 @@ const PERIODS = ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"];
 const INTERVALS: Record<string, string> = {
   "5d": "5m", "1mo": "1h", "3mo": "1d", "6mo": "1d", "1y": "1d", "2y": "1wk", "5y": "1wk",
 };
+const RECOMMENDATIONS = [
+  { symbol: "RELIANCE.NS", name: "Reliance Industries", exchange: "NSE" },
+  { symbol: "TCS.NS", name: "Tata Consultancy Services", exchange: "NSE" },
+  { symbol: "INFY.NS", name: "Infosys", exchange: "NSE" },
+  { symbol: "HDFCBANK.NS", name: "HDFC Bank", exchange: "NSE" },
+  { symbol: "BHARTIARTL.NS", name: "Bharti Airtel", exchange: "NSE" },
+  { symbol: "ITC.NS", name: "ITC Limited", exchange: "NSE" },
+];
 
 export default function MarketPage() {
   const [selected, setSelected] = React.useState<TickerResult | null>(null);
@@ -167,8 +175,30 @@ export default function MarketPage() {
               )}
             </>
           ) : (
-            <div className="rounded-lg border border-dashed border-border p-16 text-center">
-              <p className="text-sm text-muted-foreground">Search for a ticker to see its chart and fundamentals.</p>
+            <div className="space-y-6">
+              <div className="rounded-lg border border-dashed border-border p-8 text-center">
+                <p className="text-sm text-muted-foreground mb-2">Search for a ticker to see its chart and fundamentals.</p>
+                <p className="text-xs text-muted-foreground/60">Note: Data available for Indian stocks (NSE/BSE only)</p>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium mb-3">Recommended stocks</h3>
+                <div className="grid gap-2">
+                  {RECOMMENDATIONS.map((rec) => (
+                    <button
+                      key={rec.symbol}
+                      onClick={() => loadTicker(rec as TickerResult, period)}
+                      className="flex items-center justify-between rounded-lg border border-border bg-card p-3 hover:bg-secondary/40 transition-colors text-left"
+                    >
+                      <div>
+                        <p className="font-mono font-semibold text-sm text-primary">{rec.symbol.replace(/\.(NS|BO)$/, "")}</p>
+                        <p className="text-xs text-muted-foreground">{rec.name}</p>
+                      </div>
+                      <span className="text-[10px] px-2 py-1 rounded bg-secondary text-muted-foreground">{rec.exchange}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
