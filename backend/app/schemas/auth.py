@@ -5,7 +5,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator  # type: ignore[attr-defined]
+from pydantic import (  # type: ignore[attr-defined]
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+)
 
 
 class RegisterRequest(BaseModel):
