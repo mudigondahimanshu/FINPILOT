@@ -10,6 +10,7 @@ Usage in main.py:
 
 from __future__ import annotations
 
+from fastapi import FastAPI
 from prometheus_client import Counter, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -49,7 +50,7 @@ forecast_latency = Histogram(
 )
 
 
-def instrument_app(app: object) -> None:
+def instrument_app(app: FastAPI) -> None:
     """Attach Prometheus instrumentation and expose /metrics endpoint."""
     Instrumentator(
         should_group_status_codes=True,
