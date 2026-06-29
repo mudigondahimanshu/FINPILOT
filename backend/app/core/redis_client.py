@@ -72,12 +72,12 @@ return allowed
 
 async def rate_limit_ok(identifier: str, capacity: int, window_seconds: int) -> bool:
     """Return True if a request from `identifier` is within budget."""
-    allowed = await get_redis().eval(  # type: ignore[misc, arg-type]
+    allowed = await get_redis().eval(  # type: ignore[misc]
         _BUCKET_LUA,
         1,
         f"ratelimit:{identifier}",
-        capacity,
-        window_seconds,
-        time.time(),
+        str(capacity),
+        str(window_seconds),
+        str(time.time()),
     )
     return bool(allowed)
