@@ -71,7 +71,7 @@ export function OhlcChart({ data, symbol }: Props) {
           />
           <Tooltip
             formatter={(v: number, name: string) => [formatINR(v), name]}
-            contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, fontSize: 12, color: "hsl(0 0% 95%)" }}
+            contentStyle={{ background: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8, fontSize: 12, color: "#ffffff" }}
             labelStyle={{ color: "hsl(0 0% 80%)" }}
           />
           <Legend
