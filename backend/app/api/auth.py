@@ -188,7 +188,13 @@ def _require_google_configured() -> None:
 @router.get("/google/login")
 async def google_login() -> RedirectResponse:
     """Kick off Google sign-in: set a CSRF state cookie, redirect to consent."""
-    _require_google_configured()
+    if not settings.google_oauth_configured:
+        # Browser navigation, not an XHR — send the user back with a readable
+        # error instead of a raw 503 JSON page.
+        return RedirectResponse(
+            f"{settings.frontend_url}/login?error=oauth_unavailable",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
     state = secrets.token_urlsafe(32)
     url = oauth_service.build_authorization_url(state)
     redirect = RedirectResponse(url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)

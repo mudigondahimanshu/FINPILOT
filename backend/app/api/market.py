@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, WebSocket, status
 from fastapi.responses import Response
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,16 +20,20 @@ from app.websocket.market import live_price_ws
 
 router = APIRouter(prefix="/market", tags=["market"])
 
+# Ticker shape (e.g. RELIANCE.NS, M&M.NS, ^NSEI, BRK-B) — symbols reach yfinance
+# HTTP requests, so reject anything else at the edge.
+_SYMBOL = Path(pattern=r"^[A-Za-z0-9.&^-]{1,20}$")
+
 
 # ── Ticker search ─────────────────────────────────────────────────────────────
 
 @router.get("/search")
 async def search_tickers(
-    q: str = Query(min_length=1, max_length=30),
+    q: str = Query(default="", max_length=30),
     limit: int = Query(default=10, ge=1, le=30),
     _: User = Depends(get_current_user),
 ) -> list[dict]:
-    """Prefix autocomplete via in-memory Trie — O(k) complexity."""
+    """Company autocomplete: popular defaults when empty, prefix + substring otherwise."""
     return market_service.search_tickers(q, limit=limit)
 
 
@@ -37,7 +41,7 @@ async def search_tickers(
 
 @router.get("/quote/{symbol}")
 async def get_quote(
-    symbol: str,
+    symbol: str = _SYMBOL,
     _: User = Depends(get_current_user),
     __: None = Depends(rate_limit(capacity=30, window_seconds=60, scope="quote")),
 ) -> dict:
@@ -51,7 +55,7 @@ async def get_quote(
 
 @router.get("/ohlc/{symbol}")
 async def get_ohlc(
-    symbol: str,
+    symbol: str = _SYMBOL,
     interval: str = Query(default="1d", pattern=r"^(1m|5m|15m|1h|1d|1wk|1mo)$"),
     period: str = Query(default="1y", pattern=r"^(1d|5d|1mo|3mo|6mo|1y|2y|5y|10y|ytd|max)$"),
     with_ma: bool = Query(default=True),
@@ -70,7 +74,7 @@ async def get_ohlc(
 
 @router.get("/fundamentals/{symbol}")
 async def get_fundamentals(
-    symbol: str,
+    symbol: str = _SYMBOL,
     _: User = Depends(get_current_user),
 ) -> dict:
     result = await market_service.get_fundamentals(symbol.upper())
@@ -96,8 +100,8 @@ async def list_watchlist(
 
 @router.post("/watchlist/{symbol}", status_code=status.HTTP_201_CREATED)
 async def add_to_watchlist(
-    symbol: str,
-    exchange: str = Query(default="NSE"),
+    symbol: str = _SYMBOL,
+    exchange: str = Query(default="NSE", pattern=r"^[A-Za-z]{2,10}$"),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -121,7 +125,7 @@ async def add_to_watchlist(
 
 @router.delete("/watchlist/{symbol}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_from_watchlist(
-    symbol: str,
+    symbol: str = _SYMBOL,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> Response:

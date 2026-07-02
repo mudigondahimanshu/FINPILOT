@@ -51,8 +51,12 @@ class Settings(BaseSettings):
     alpha_vantage_key: str = Field(default="")
     market_data_cache_ttl: int = Field(default=60)  # seconds
 
-    # Phase 3 — AI Brain
+    # Phase 3 — AI Brain. All optional: the copilot answers keylessly without
+    # them; setting any ONE (server-side) upgrades generation quality.
+    groq_api_key: str = Field(default="")           # Groq free tier (recommended)
+    gemini_api_key: str = Field(default="")         # Google AI Studio free tier
     anthropic_api_key: str = Field(default="")
+    ollama_url: str = Field(default="")             # e.g. http://localhost:11434
     hf_api_key: str = Field(default="")             # HuggingFace Inference API key
     ml_models_dir: str = Field(default="/app/models")
     bandit_epsilon: float = Field(default=0.15)

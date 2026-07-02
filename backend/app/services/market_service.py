@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.lru_cache import fundamentals_cache, ohlc_cache, quote_cache
 from app.core.moving_average import exponential_moving_average, simple_moving_average
-from app.core.trie import ticker_trie
+from app.core.trie import POPULAR_SYMBOLS, all_tickers, ticker_trie
 from app.models.ohlc import OHLC
 
 log = logging.getLogger(__name__)
@@ -207,7 +207,32 @@ def _fetch_fundamentals_sync(symbol: str) -> dict:
 # ── Autocomplete ──────────────────────────────────────────────────────────────
 
 def search_tickers(query: str, limit: int = 10) -> list[dict]:
-    """Prefix search via the in-memory Trie — O(k) where k = len(query)."""
-    raw = ticker_trie.search(query, limit=limit * 2)
-    # Filter out the name-index keys (they have "__" injected).
-    return [r for r in raw if "__" not in r["symbol"]][:limit]
+    """Company autocomplete: prefix matches first, then substring matches.
+
+    - Empty/blank query → popular large-cap suggestions.
+    - Prefix matches (symbol or any name word) come from the Trie, O(k).
+    - Substring matches (e.g. "finance" → BAJFINANCE, "bank" anywhere in the
+      name) come from a scan of the small curated universe, so a suffix or
+      middle fragment of a company name still surfaces suggestions.
+    """
+    q = query.strip().upper()
+    if not q:
+        popular = {p: None for p in POPULAR_SYMBOLS}
+        return [t for t in all_tickers() if t["symbol"] in popular][:limit]
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def _add(items: list[dict]) -> None:
+        for item in items:
+            if item["symbol"] not in seen:
+                seen.add(item["symbol"])
+                out.append(item)
+
+    _add(ticker_trie.search(q, limit=limit * 2))
+    if len(out) < limit:
+        _add([
+            t for t in all_tickers()
+            if q in t["symbol"].upper() or q in t["name"].upper()
+        ])
+    return out[:limit]

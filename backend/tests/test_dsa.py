@@ -64,6 +64,43 @@ class TestTrie:
         results = self._trie().search("")
         assert len(results) >= 4
 
+    def test_name_key_keeps_real_symbol(self) -> None:
+        t = TickerTrie()
+        t.insert("HDFCBANK.NS", "HDFC Bank", "NSE", key="Bank")
+        results = t.search("BANK")
+        assert results and results[0]["symbol"] == "HDFCBANK.NS"
+
+
+class TestSearchTickers:
+    """Company autocomplete on the curated universe (prefix + substring + defaults)."""
+
+    def test_symbol_prefix(self) -> None:
+        from app.services.market_service import search_tickers
+        syms = [r["symbol"] for r in search_tickers("RELI")]
+        assert "RELIANCE.NS" in syms
+
+    def test_name_word_prefix(self) -> None:
+        from app.services.market_service import search_tickers
+        syms = [r["symbol"] for r in search_tickers("bank")]
+        assert "HDFCBANK.NS" in syms and "ICICIBANK.NS" in syms
+
+    def test_substring_suffix(self) -> None:
+        from app.services.market_service import search_tickers
+        # "finance" is a suffix of BAJFINANCE — must still match.
+        syms = [r["symbol"] for r in search_tickers("finance")]
+        assert "BAJFINANCE.NS" in syms
+
+    def test_empty_query_returns_popular(self) -> None:
+        from app.services.market_service import search_tickers
+        results = search_tickers("")
+        assert results, "empty query should return default suggestions"
+        assert all("__" not in r["symbol"] for r in results)
+
+    def test_no_duplicates(self) -> None:
+        from app.services.market_service import search_tickers
+        syms = [r["symbol"] for r in search_tickers("tata")]
+        assert len(syms) == len(set(syms))
+
 
 # ── Order book ────────────────────────────────────────────────────────────────
 

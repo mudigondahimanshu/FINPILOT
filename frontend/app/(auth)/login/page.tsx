@@ -17,6 +17,8 @@ const OAUTH_ERRORS: Record<string, string> = {
   oauth_denied: "Google sign-in was cancelled.",
   oauth_state_mismatch: "Sign-in expired — please try again.",
   oauth_failed: "Couldn't complete Google sign-in. Please try again.",
+  oauth_unavailable:
+    "Google sign-in isn't set up on this server yet. Use email and password instead.",
 };
 
 function LoginForm() {

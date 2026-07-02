@@ -5,12 +5,21 @@ Pipeline:
   1. Ingest  — chunk text (financial PDFs / regulations) → sentence-transformer
                embeddings (384-dim, all-MiniLM-L6-v2) → upsert into pgvector.
   2. Retrieve — embed user query → cosine ANN search (top-5 chunks).
-  3. Generate — pass retrieved context + conversation history to Claude Haiku;
+  3. Generate — pass retrieved context + conversation history to an LLM;
                return grounded answer + source citations.
 
 Embedding model: sentence-transformers/all-MiniLM-L6-v2 (90 MB, local, no API key).
-LLM: claude-haiku-4-5-20251001 via Anthropic API (ANTHROPIC_API_KEY env var required).
-     Falls back to a template answer when API key is not set.
+
+Generation is provider-agnostic. End users never supply a key — the copilot
+always answers. The operator MAY set one server-side env var to upgrade answer
+quality; providers are tried in order and the first configured one wins:
+
+  1. GROQ_API_KEY       — Groq free tier (Llama 3.3 70B, fast)
+  2. GEMINI_API_KEY     — Google AI Studio free tier (Gemini Flash)
+  3. ANTHROPIC_API_KEY  — Claude Haiku
+  4. OLLAMA_URL         — self-hosted local model (e.g. http://localhost:11434)
+  5. (none)             — built-in keyless answer engine over the retrieved
+                          chunks + the user's own financial snapshot
 """
 
 from __future__ import annotations
@@ -27,11 +36,21 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 _EMBED_MODEL = "all-MiniLM-L6-v2"
 _EMBED_DIM = 384
 _TOP_K = 5
 _MAX_CHUNK = 512  # characters
+_LLM_TIMEOUT = 30.0  # seconds
+
+_SYSTEM_PROMPT = (
+    "You are FinPilot, a personalized AI financial copilot. You are given (a) retrieved "
+    "knowledge-base context and (b) the user's own financial profile. Tailor your answer "
+    "to the user's actual spending, budgets, risk profile, and portfolio when relevant, "
+    "and reference their real numbers. Cite knowledge-base sources as [1], [2], etc. "
+    "Give educational, data-grounded guidance — explain trade-offs and general principles "
+    "rather than issuing licensed investment advice, and remind the user to do their own "
+    "research for specific buy/sell decisions. If you lack the data to answer, say so."
+)
 
 _embedder: object | None = None
 
@@ -69,7 +88,7 @@ async def ingest_document(session: AsyncSession, title: str, body: str) -> int:
             text(
                 """
                 INSERT INTO embeddings (id, content, metadata, embedding)
-                VALUES (:id, :content, :meta, :vec::vector)
+                VALUES (:id, :content, :meta, CAST(:vec AS vector))
                 ON CONFLICT DO NOTHING
                 """
             ),
@@ -116,14 +135,15 @@ async def retrieve(session: AsyncSession, query: str, k: int = _TOP_K) -> list[d
     from sqlalchemy import text  # noqa: PLC0415
     result = await session.execute(
         text(
-            f"""
+            """
             SELECT id, content, metadata,
-                   1 - (embedding <=> '{q_vec}'::vector) AS similarity
+                   1 - (embedding <=> CAST(:q_vec AS vector)) AS similarity
             FROM embeddings
-            ORDER BY embedding <=> '{q_vec}'::vector
-            LIMIT {k}
-            """  # noqa: S608
-        )
+            ORDER BY embedding <=> CAST(:q_vec AS vector)
+            LIMIT :k
+            """
+        ),
+        {"q_vec": q_vec, "k": k},
     )
     return [
         {"id": str(r.id), "content": r.content, "metadata": r.metadata, "similarity": float(r.similarity)} # noqa: E501
@@ -165,77 +185,170 @@ async def answer(
         reason_parts.append("Answer personalized using your spending, budgets, and portfolio.")
     reasoning = " ".join(reason_parts)
 
-    if not _ANTHROPIC_KEY:
-        return {
-            "answer": _template_answer(question, chunks, user_context),
-            "sources": sources,
-            "reasoning": reasoning,
-            "model": "template",
-            "personalized": personalized,
-        }
-
-    answer_text = await asyncio.to_thread(
-        _claude_generate, question, context, history or [], user_context
+    generated = await asyncio.to_thread(
+        _generate, question, context, history or [], user_context
     )
+    if generated is not None:
+        answer_text, model = generated
+    else:
+        answer_text, model = _local_answer(question, chunks, user_context), "local"
+
     return {
         "answer": answer_text, "sources": sources,
-        "reasoning": reasoning, "model": "claude-haiku",
+        "reasoning": reasoning, "model": model,
         "personalized": personalized,
     }
 
 
-def _claude_generate(
-    question: str,
-    context: str,
-    history: list[dict],
-    user_context: str | None = None,
-) -> str:
-    import anthropic  # noqa: PLC0415
+# ── LLM provider chain ────────────────────────────────────────────────────────
 
-    client = anthropic.Anthropic(api_key=_ANTHROPIC_KEY)
-    system = (
-        "You are FinPilot, a personalized AI financial copilot. You are given (a) retrieved "
-        "knowledge-base context and (b) the user's own financial profile. Tailor your answer "
-        "to the user's actual spending, budgets, risk profile, and portfolio when relevant, "
-        "and reference their real numbers. Cite knowledge-base sources as [1], [2], etc. "
-        "Give educational, data-grounded guidance — explain trade-offs and general principles "
-        "rather than issuing licensed investment advice, and remind the user to do their own "
-        "research for specific buy/sell decisions. If you lack the data to answer, say so."
-    )
+def _build_messages(
+    question: str, context: str, history: list[dict], user_context: str | None
+) -> list[dict]:
     user_block = f"Context:\n{context}\n\n"
     if user_context:
         user_block += f"{user_context}\n\n"
     user_block += f"Question: {question}"
-
-    messages = [
+    return [
         *[{"role": m["role"], "content": m["content"]} for m in history[-6:]],
         {"role": "user", "content": user_block},
     ]
+
+
+def _generate(
+    question: str,
+    context: str,
+    history: list[dict],
+    user_context: str | None = None,
+) -> tuple[str, str] | None:
+    """Try each configured provider in order; return (answer, model) or None."""
+    from app.core.config import settings  # noqa: PLC0415
+
+    messages = _build_messages(question, context, history, user_context)
+    providers = [
+        (settings.groq_api_key, _groq_generate),
+        (settings.gemini_api_key, _gemini_generate),
+        (settings.anthropic_api_key, _anthropic_generate),
+        (settings.ollama_url, _ollama_generate),
+    ]
+    for credential, generate in providers:
+        if not credential:
+            continue
+        try:
+            return generate(credential, messages)
+        except Exception as exc:
+            log.warning("%s failed, trying next provider: %s", generate.__name__, exc)
+    return None
+
+
+def _groq_generate(api_key: str, messages: list[dict]) -> tuple[str, str]:
+    """Groq free tier — OpenAI-compatible chat completions."""
+    import httpx  # noqa: PLC0415
+
+    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    resp = httpx.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "model": model,
+            "max_tokens": 512,
+            "messages": [{"role": "system", "content": _SYSTEM_PROMPT}, *messages],
+        },
+        timeout=_LLM_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"], f"groq/{model}"
+
+
+def _gemini_generate(api_key: str, messages: list[dict]) -> tuple[str, str]:
+    """Google AI Studio free tier."""
+    import httpx  # noqa: PLC0415
+
+    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    contents = [
+        {"role": "model" if m["role"] == "assistant" else "user",
+         "parts": [{"text": m["content"]}]}
+        for m in messages
+    ]
+    resp = httpx.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        headers={"x-goog-api-key": api_key},
+        json={
+            "system_instruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": 512},
+        },
+        timeout=_LLM_TIMEOUT,
+    )
+    resp.raise_for_status()
+    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return text, f"gemini/{model}"
+
+
+def _anthropic_generate(api_key: str, messages: list[dict]) -> tuple[str, str]:
+    import anthropic  # noqa: PLC0415
+
+    client = anthropic.Anthropic(api_key=api_key)
+    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=model,
         max_tokens=512,
-        system=system,
+        system=_SYSTEM_PROMPT,
         messages=messages,
     )
-    return response.content[0].text
+    return response.content[0].text, f"anthropic/{model}"
 
 
-def _template_answer(
+def _ollama_generate(base_url: str, messages: list[dict]) -> tuple[str, str]:
+    """Self-hosted Ollama — free, local, no key."""
+    import httpx  # noqa: PLC0415
+
+    model = os.getenv("OLLAMA_MODEL", "llama3.2")
+    resp = httpx.post(
+        f"{base_url.rstrip('/')}/api/chat",
+        json={
+            "model": model,
+            "stream": False,
+            "messages": [{"role": "system", "content": _SYSTEM_PROMPT}, *messages],
+        },
+        timeout=max(_LLM_TIMEOUT, 120.0),  # local inference can be slow
+    )
+    resp.raise_for_status()
+    return resp.json()["message"]["content"], f"ollama/{model}"
+
+
+# ── Keyless answer engine (always available) ─────────────────────────────────
+
+def _local_answer(
     question: str, chunks: list[dict], user_context: str | None = None
 ) -> str:
-    prefix = ""
+    """Compose a grounded answer from retrieved chunks + the user's own data.
+
+    No external API involved, so the copilot always responds even with zero
+    provider configuration.
+    """
+    parts: list[str] = []
+
+    relevant = [c for c in chunks if c.get("similarity", 0) > 0.3][:3]
+    if relevant:
+        parts.append("Here's what the knowledge base says about your question:")
+        for i, chunk in enumerate(relevant, start=1):
+            excerpt = chunk["content"][:400].strip()
+            parts.append(f"[{i}] {excerpt}")
     if user_context:
-        prefix = (
-            "Here's a snapshot of your finances I'd use to tailor this answer:\n"
-            f"{user_context}\n\n"
+        parts.append(
+            "Looking at your own finances, here's the snapshot I'd weigh this against:\n"
+            + user_context
         )
-    if not chunks:
+    if not relevant and not user_context:
         return (
-            prefix + "I don't have relevant knowledge-base information to answer that.\n\n"
-            "(Set ANTHROPIC_API_KEY for full AI-powered, personalized answers.)"
+            "I couldn't find knowledge-base material matching that question, and I "
+            "don't have enough of your financial data yet to answer from it. Try "
+            "importing your transactions or asking about budgeting, investing "
+            "basics, or your spending."
         )
-    top = chunks[0]["content"][:300]
-    return (
-        f"{prefix}Based on available documentation: {top}...\n\n"
-        "(Set ANTHROPIC_API_KEY for full AI-powered, personalized answers.)"
+    parts.append(
+        "This summary is drawn directly from your data and the cited sources — "
+        "consider it a starting point and do your own research before acting on it."
     )
+    return "\n\n".join(parts)

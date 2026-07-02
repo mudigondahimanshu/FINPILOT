@@ -22,13 +22,19 @@ class TickerTrie:
     def __init__(self) -> None:
         self._root = _Node()
 
-    def insert(self, symbol: str, name: str, exchange: str) -> None:
-        key = symbol.upper()
+    def insert(self, symbol: str, name: str, exchange: str, key: str | None = None) -> None:
+        """Index the (symbol, name, exchange) payload under *key* (default: symbol).
+
+        Passing an explicit *key* lets callers index the same company under
+        several search terms (e.g. each word of its name) while the payload
+        always carries the real, un-mangled symbol.
+        """
+        trie_key = (key or symbol).upper()
         node = self._root
-        for ch in key:
+        for ch in trie_key:
             node = node.children.setdefault(ch, _Node())
         # Store payload only at the terminal node to keep traversal lean.
-        node.results.append({"symbol": key, "name": name, "exchange": exchange})
+        node.results.append({"symbol": symbol.upper(), "name": name, "exchange": exchange})
 
     def search(self, prefix: str, limit: int = 10) -> list[dict]:
         """Return up to `limit` matches for the given prefix."""
@@ -115,8 +121,23 @@ def build_ticker_trie() -> TickerTrie:
         # Also index by name words so "Reliance" → RELIANCE.NS
         for word in name.split():
             if len(word) > 2:
-                trie.insert(word + "__" + symbol, name, exchange)
+                trie.insert(symbol, name, exchange, key=word)
     return trie
+
+
+def all_tickers() -> list[dict]:
+    """The full curated universe as payload dicts (for substring scans)."""
+    return [
+        {"symbol": symbol, "name": name, "exchange": exchange}
+        for symbol, name, exchange in _SEED
+    ]
+
+
+# The most-traded large caps, shown as default suggestions before typing.
+POPULAR_SYMBOLS = [
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
+    "SBIN.NS", "BHARTIARTL.NS", "TATAMOTORS.NS",
+]
 
 
 # Module-level singleton built once at import time.

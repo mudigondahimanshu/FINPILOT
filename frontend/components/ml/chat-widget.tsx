@@ -243,7 +243,7 @@ export function ChatWidget() {
           </Button>
         </div>
         <p className="mt-1.5 text-[10px] text-muted-foreground/60">
-          Not financial advice. Set ANTHROPIC_API_KEY for AI answers.
+          Not financial advice. Answers are grounded in your data and cited sources.
         </p>
       </div>
     </div>

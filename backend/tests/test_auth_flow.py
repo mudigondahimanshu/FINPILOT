@@ -24,7 +24,9 @@ async def client():  # type: ignore[no-untyped-def]
     from httpx import ASGITransport, AsyncClient
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    # https base URL so the client sends back the Secure refresh cookie
+    # (ENVIRONMENT=test keeps secure cookies on, matching production).
+    async with AsyncClient(transport=transport, base_url="https://test") as c:
         yield c
 
 

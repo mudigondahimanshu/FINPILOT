@@ -272,6 +272,9 @@ def upgrade() -> None:
     _auth_ctx_policy("audit_logs")
 
     # ── embeddings (pgvector) ─────────────────────────────────────────────────
+    # The extension may already exist via the DB init script; creating it here
+    # keeps migrations self-sufficient (e.g. bare CI service containers).
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.create_table(
         "embeddings",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),

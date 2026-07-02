@@ -318,9 +318,9 @@ class TestPersonalizedCopilot:
         async def fake_retrieve(_session, _query, k=5):  # noqa: ARG001
             return []
 
-        # Force the template path (no API key) and stub retrieval (no DB/embedder).
+        # Force the keyless local path (no providers) and stub retrieval (no DB/embedder).
         with patch.object(rag, "retrieve", fake_retrieve), \
-             patch.object(rag, "_ANTHROPIC_KEY", ""):
+             patch.object(rag, "_generate", lambda *_a, **_k: None):
             return asyncio.run(
                 rag.answer(session=None, question="How am I doing?",
                            history=[], user_context=user_context)

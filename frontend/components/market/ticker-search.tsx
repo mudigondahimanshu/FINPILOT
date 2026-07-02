@@ -14,24 +14,29 @@ export function TickerSearch({ onSelect, placeholder = "Search symbol or company
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<TickerResult[]>([]);
   const [open, setOpen] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
+  // Empty query + focus → popular company suggestions; typing → prefix/substring matches.
   React.useEffect(() => {
-    if (!query.trim()) { setResults([]); setOpen(false); return; }
+    if (!focused) return;
     const id = setTimeout(async () => {
       try {
-        const r = await api.market.search(query, 8);
+        const r = await api.market.search(query.trim(), 8);
         setResults(r);
         setOpen(r.length > 0);
       } catch { setResults([]); }
-    }, 200);
+    }, query.trim() ? 200 : 0);
     return () => clearTimeout(id);
-  }, [query]);
+  }, [query, focused]);
 
   // Close dropdown on outside click.
   React.useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFocused(false);
+      }
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -41,6 +46,7 @@ export function TickerSearch({ onSelect, placeholder = "Search symbol or company
     onSelect(t);
     setQuery("");
     setOpen(false);
+    setFocused(false);
   }
 
   return (
@@ -50,6 +56,7 @@ export function TickerSearch({ onSelect, placeholder = "Search symbol or company
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
           placeholder={placeholder}
           className="pl-9 pr-8"
         />
@@ -61,6 +68,11 @@ export function TickerSearch({ onSelect, placeholder = "Search symbol or company
       </div>
       {open && (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+          {!query.trim() && (
+            <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Popular companies
+            </div>
+          )}
           {results.map((t) => (
             <button
               key={t.symbol}
