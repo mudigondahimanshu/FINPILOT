@@ -37,6 +37,13 @@ warn_unused_ignores = false
 disallow_untyped_defs = true
 ignore_missing_imports = true
 
+# Heavy ML libraries are untyped and their transitive `transformers` version
+# floats; analyzing them is slow and has crashed mypy. Skip them entirely.
+[[tool.mypy.overrides]]
+module = ["transformers.*", "sentence_transformers.*", "torch.*"]
+follow_imports = "skip"
+ignore_errors = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

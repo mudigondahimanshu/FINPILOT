@@ -4,7 +4,41 @@ updates:
     directory: "/backend"
     schedule:
       interval: weekly
+    # One tidy PR per week instead of a flood.
+    groups:
+      backend-deps:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    ignore:
+      # numpy 2.x breaks the pinned ML stack (xgboost, scikit-learn,
+      # onnxruntime, skl2onnx built against the 1.x ABI). Bump deliberately
+      # together with the whole ML toolchain.
+      - dependency-name: numpy
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
       interval: weekly
+    groups:
+      frontend-deps:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    ignore:
+      # Framework majors are deliberate migrations, not routine bumps.
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      # recharts 3 changes chart/tooltip behavior across the dashboard.
+      - dependency-name: recharts
+        update-types: ["version-update:semver-major"]
+      # @vitejs/plugin-react 6 requires vite 8, which conflicts with vitest 2.
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
