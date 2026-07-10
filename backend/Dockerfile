@@ -13,7 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-dev.txt ./
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# CPU-only torch first: the default Linux wheel drags in ~7 GB of CUDA
+# libraries that sentence-transformers never uses here, bloating the image
+# past what CI runners (and most laptops) can hold.
+RUN pip install --upgrade pip \
+    && pip install torch --index-url https://download.pytorch.org/whl/cpu \
+    && pip install -r requirements.txt
 
 COPY . .
 

@@ -4,6 +4,10 @@ updates:
     directory: "/backend"
     schedule:
       interval: weekly
+    # Wait a week before proposing freshly published versions — avoids
+    # malicious/unstable releases and reduces PR churn.
+    cooldown:
+      default-days: 7
     # One tidy PR per week instead of a flood.
     groups:
       backend-deps:
@@ -15,11 +19,21 @@ updates:
       # together with the whole ML toolchain.
       - dependency-name: numpy
         update-types: ["version-update:semver-major"]
+      # FastAPI 0.x "minors" change Starlette router internals and break
+      # prometheus-fastapi-instrumentator — bump these three together, by hand.
+      - dependency-name: fastapi
+      - dependency-name: starlette
+      - dependency-name: prometheus-fastapi-instrumentator
+      # pytest-asyncio 1.x changes fixture/event-loop semantics.
+      - dependency-name: pytest-asyncio
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       frontend-deps:
         applies-to: version-updates
@@ -41,4 +55,10 @@ updates:
       - dependency-name: "@vitejs/plugin-react"
         update-types: ["version-update:semver-major"]
       - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      # eslint 10 needs flat config; typescript 6 breaks current typings.
+      # Both are deliberate migrations.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
         update-types: ["version-update:semver-major"]
