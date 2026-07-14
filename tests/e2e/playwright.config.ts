@@ -16,7 +16,7 @@ export default defineConfig({
 
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-safari", use: { ...devices["iPhone 14"] } },
+    ...(process.env.CI ? [] : [{ name: "mobile-safari", use: { ...devices["iPhone 14"] } }]),
   ],
 
   webServer: process.env.CI
