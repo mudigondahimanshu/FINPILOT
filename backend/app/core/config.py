@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,11 +46,6 @@ class Settings(BaseSettings):
     # CORS allow-list (comma-separated in env)
     cors_origins: str = Field(default="http://localhost:3000")
 
-    # Market data
-    finnhub_api_key: str = Field(default="")
-    alpha_vantage_key: str = Field(default="")
-    market_data_cache_ttl: int = Field(default=60)  # seconds
-
     # Phase 3 — AI Brain. All optional: the copilot answers keylessly without
     # them; setting any ONE (server-side) upgrades generation quality.
     groq_api_key: str = Field(default="")           # Groq free tier (recommended)
@@ -61,13 +56,20 @@ class Settings(BaseSettings):
     ml_models_dir: str = Field(default="/app/models")
     bandit_epsilon: float = Field(default=0.15)
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_db_scheme(cls, v: str) -> str:
+        """Accept Heroku/Render-style postgres:// URLs and force the async driver."""
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     @property
     def google_oauth_configured(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret)
-
-    @property
-    def finnhub_configured(self) -> bool:
-        return bool(self.finnhub_api_key)
 
     @property
     def cors_origin_list(self) -> list[str]:

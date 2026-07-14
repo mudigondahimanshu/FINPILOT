@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import auth, health, market, mfa, ml, optimizer, portfolio, transactions
+from app.api import auth, budgets, goals, health, mfa, ml, overview, transactions
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.metrics import instrument_app
@@ -59,13 +59,23 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(mfa.router)
     app.include_router(transactions.router)
-    app.include_router(market.router)
-    app.include_router(portfolio.router)
-    app.include_router(optimizer.router)
+    app.include_router(budgets.router)
+    app.include_router(goals.router)
+    app.include_router(overview.router)
     app.include_router(ml.router)
 
     # Prometheus /metrics endpoint
     instrument_app(app)
+
+    @app.on_event("startup")
+    async def warm_copilot() -> None:
+        # Load the 90 MB embedding model off the request path so the first
+        # copilot question answers fast. No-op when embeddings are disabled.
+        import threading  # noqa: PLC0415
+
+        from app.ml.rag import preload_embedder  # noqa: PLC0415
+
+        threading.Thread(target=preload_embedder, daemon=True).start()
 
     @app.get("/", tags=["root"])
     async def root() -> dict[str, str]:

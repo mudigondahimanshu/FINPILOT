@@ -59,10 +59,26 @@ _embedder: object | None = None
 
 def _get_embedder() -> object:
     global _embedder  # noqa: PLW0603
+    if os.getenv("DISABLE_EMBEDDINGS", "") == "1":
+        msg = "embeddings disabled via DISABLE_EMBEDDINGS=1"
+        raise RuntimeError(msg)
     if _embedder is None:
         from sentence_transformers import SentenceTransformer  # noqa: PLC0415
         _embedder = SentenceTransformer(_EMBED_MODEL)
     return _embedder
+
+
+def preload_embedder() -> None:
+    """Warm the embedding model so the first copilot question isn't slow.
+
+    Called from app startup in a background thread; failures are logged and
+    ignored — the copilot degrades gracefully without retrieval.
+    """
+    try:
+        _get_embedder()
+        log.info("embedding model %s preloaded", _EMBED_MODEL)
+    except Exception as exc:
+        log.warning("embedding model unavailable (%s); copilot runs without RAG", exc)
 
 
 def _embed(texts: list[str]) -> list[list[float]]:
@@ -162,10 +178,18 @@ async def answer(
     """Retrieve relevant chunks then generate a grounded, personalized answer.
 
     *user_context* is an optional natural-language snapshot of the signed-in
-    user's finances (spending, budgets, risk profile, portfolio). When provided,
+    user's finances (spending, budgets, goals, subscriptions). When provided,
     the copilot tailors its answer to the user's actual data.
+
+    Retrieval is best-effort: on hosts without the embedding model (e.g.
+    low-memory free tiers with DISABLE_EMBEDDINGS=1) the copilot still answers
+    from the user's own financial context.
     """
-    chunks = await retrieve(session, question)
+    try:
+        chunks = await retrieve(session, question)
+    except Exception as exc:
+        log.warning("retrieval unavailable, answering without knowledge base: %s", exc)
+        chunks = []
     context = "\n\n".join(f"[{i+1}] {c['content']}" for i, c in enumerate(chunks))
     sources = [{"id": str(i + 1), **c} for i, c in enumerate(chunks)]
 

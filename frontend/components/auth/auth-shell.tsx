@@ -37,7 +37,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               <span className="text-primary">protects your money</span>.
             </h1>
             <p className="mt-5 text-pretty text-muted-foreground">
-              Forecast spending, paper-trade real markets, and ask an explainable
+              Forecast spending, hit savings goals, and ask an explainable
               copilot — behind bank-grade security.
             </p>
           </div>

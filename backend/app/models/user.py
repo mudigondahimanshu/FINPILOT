@@ -20,9 +20,7 @@ if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.budget import Budget
     from app.models.category import Category
-    from app.models.portfolio import Portfolio, Trade
     from app.models.transaction import Transaction
-    from app.models.watchlist import Watchlist
 
 
 class User(Base):
@@ -75,15 +73,6 @@ class User(Base):
     )
     budgets: Mapped[list[Budget]] = relationship(
         "Budget", back_populates="user", cascade="all, delete-orphan"
-    )
-    portfolios: Mapped[list[Portfolio]] = relationship(
-        "Portfolio", back_populates="user", cascade="all, delete-orphan"
-    )
-    trades: Mapped[list[Trade]] = relationship(
-        "Trade", back_populates="user", cascade="all, delete-orphan"
-    )
-    watchlist: Mapped[list[Watchlist]] = relationship(
-        "Watchlist", back_populates="user", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:  # pragma: no cover

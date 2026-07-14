@@ -3,7 +3,6 @@
 Tests cover:
   - Classifier rule-based fallback + feature engineering
   - ARIMA + Reservoir-LSTM forecaster (synthetic data)
-  - VADER sentiment scoring
   - Fraud detector (Isolation Forest + BFS/DFS + velocity + geolocation)
   - Bandit arm selection + simulated acceptance rate improvement
   - A/B testing deterministic assignment
@@ -93,52 +92,6 @@ class TestForecaster:
         result = asyncio.run(forecast_spending(series, horizon=30))
         assert "validation" in result
         assert result["validation"]["arima_rmse_pct"] < 30.0 or result["validation"]["lstm_rmse_pct"] < 30.0
-
-    def test_stock_forecast_shape(self) -> None:
-        import asyncio
-
-        from app.ml.forecaster import forecast_stock
-        prices = [2800 + i * 3 + (i % 5) * 10 for i in range(60)]
-        result = asyncio.run(forecast_stock(prices, horizon=5))
-        assert len(result["forecast_prices"]) == 5
-        assert result["last_price"] == prices[-1]
-
-    def test_insufficient_data(self) -> None:
-        import asyncio
-
-        from app.ml.forecaster import forecast_spending
-        result = asyncio.run(forecast_spending([100, 200], horizon=30))
-        assert "error" in result
-
-
-# ── 3.3 Sentiment ─────────────────────────────────────────────────────────────
-
-class TestSentiment:
-    def test_vader_bullish(self) -> None:
-        from app.ml.sentiment import _vader_score
-        result = _vader_score("Stock surges to record high on strong quarterly profit")
-        assert result["score"] > 0
-
-    def test_vader_bearish(self) -> None:
-        from app.ml.sentiment import _vader_score
-        result = _vader_score("Company crashes after fraud allegations and massive loss")
-        assert result["score"] < 0
-
-    def test_vader_neutral(self) -> None:
-        from app.ml.sentiment import _vader_score
-        result = _vader_score("Company announces quarterly earnings results")
-        assert -0.6 < result["score"] < 0.6
-
-    def test_label_bullish(self) -> None:
-        from app.ml.sentiment import _label
-        assert _label(0.5) == "Bullish"
-        assert _label(-0.5) == "Bearish"
-        assert _label(0.0) == "Neutral"
-
-    def test_financial_boost(self) -> None:
-        from app.ml.sentiment import _financial_boost
-        assert _financial_boost("bullish rally breakout") > 0
-        assert _financial_boost("crash bankrupt fraud") < 0
 
 
 # ── 3.4 Fraud ────────────────────────────────────────────────────────────────

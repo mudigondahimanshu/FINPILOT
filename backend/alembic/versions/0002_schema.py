@@ -166,8 +166,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", "date"),  # composite PK required for hypertable
     )
     # Promote to TimescaleDB hypertable partitioned by date (7-day chunks).
+    # Conditional: managed Postgres hosts (e.g. Render) lack TimescaleDB — the
+    # table then stays a regular table, which every query here supports.
     op.execute(
-        "SELECT create_hypertable('transactions', 'date', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)"
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+            PERFORM create_hypertable('transactions', 'date',
+                chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE);
+          END IF;
+        END $$
+        """
     )
     # Core query patterns: per-user time range + per-user category filter.
     op.create_index("ix_txn_user_date",     "transactions", ["user_id", "date"])

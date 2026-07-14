@@ -4,12 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart2,
-  CandlestickChart,
+  Repeat,
   LayoutDashboard,
-  LineChart,
   LogOut,
+  PiggyBank,
   Sparkles,
+  Target,
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -19,9 +19,9 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 const nav = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
   { icon: Wallet, label: "Spending", href: "/transactions" },
-  { icon: CandlestickChart, label: "Market", href: "/market" },
-  { icon: BarChart2, label: "Paper trading", href: "/trading" },
-  { icon: LineChart, label: "Optimizer", href: "/optimize" },
+  { icon: PiggyBank, label: "Budgets", href: "/budgets" },
+  { icon: Target, label: "Goals", href: "/goals" },
+  { icon: Repeat, label: "Subscriptions", href: "/subscriptions" },
   { icon: Sparkles, label: "AI Insights", href: "/insights" },
 ];
 
@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="mt-4 rounded-md border border-border p-3">
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Educational tool. Not financial advice. Paper trading only.
+            Educational tool. Not financial advice.
           </p>
         </div>
       </aside>

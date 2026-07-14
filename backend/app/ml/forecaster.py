@@ -1,4 +1,4 @@
-"""Spend + stock price forecaster (Phase 3.2).
+"""Spending forecaster (Phase 3.2).
 
 Two-model approach:
   ARIMA   — statsmodels ARIMA(5,1,0) on monthly spend series (baseline)
@@ -34,14 +34,6 @@ async def forecast_spending(
 ) -> dict:
     """Return 30-day spend forecast with ARIMA + LSTM predictions."""
     return await asyncio.to_thread(_forecast_sync, daily_amounts, horizon)
-
-
-async def forecast_stock(
-    prices: list[float],
-    horizon: int = 5,
-) -> dict:
-    """Return short-horizon stock price forecast using lagged feature regression."""
-    return await asyncio.to_thread(_stock_forecast_sync, prices, horizon)
 
 
 # ── ARIMA ─────────────────────────────────────────────────────────────────────
@@ -184,20 +176,3 @@ def _forecast_sync(daily_amounts: list[float], horizon: int) -> dict:
         },
     }
 
-
-def _stock_forecast_sync(prices: list[float], horizon: int) -> dict:
-    series = np.array(prices, dtype=float)
-    if len(series) < 6:
-        return {"error": "Need at least 6 price points"}
-    returns = np.diff(series) / (series[:-1] + 1e-9)
-    lstm_ret = _lstm_forecast(returns, horizon)
-    last_price = float(series[-1])
-    forecasted = [last_price]
-    for r in lstm_ret:
-        forecasted.append(forecasted[-1] * (1 + float(r)))
-    return {
-        "horizon_days": horizon,
-        "forecast_prices": [round(p, 2) for p in forecasted[1:]],
-        "last_price": last_price,
-        "expected_return_pct": round(float((forecasted[-1] / last_price - 1) * 100), 2),
-    }

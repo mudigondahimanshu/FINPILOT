@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, rate_limit
 from app.core.database import get_db
-from app.ml import ab_testing, classifier, forecaster, fraud_detector, rag, sentiment, user_context
+from app.ml import ab_testing, classifier, forecaster, fraud_detector, rag, user_context
 from app.ml import user_preferences as user_prefs
 from app.ml.bandit import log_feedback, recommend
 from app.models.user import User
@@ -94,41 +94,6 @@ async def forecast_spending(
     return result
 
 
-@router.post("/forecast/stock")
-async def forecast_stock(
-    symbol: str = Query(..., min_length=1, max_length=20),
-    horizon: int = Query(default=5, ge=1, le=30),
-    _: User = Depends(get_current_user),
-) -> dict:
-    """Short-horizon stock price forecast from recent OHLC data."""
-    from app.services import market_service  # noqa: PLC0415
-    ohlc = await market_service.get_ohlc(symbol.upper(), interval="1d", period="6mo")
-    prices = [c["close"] for c in ohlc]
-    if len(prices) < 6:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Insufficient price history")
-    return await forecaster.forecast_stock(prices, horizon=horizon)
-
-
-# ── 3.3 Sentiment ─────────────────────────────────────────────────────────────
-
-@router.get("/sentiment/{symbol}", dependencies=[Depends(rate_limit(20, 60, "sentiment"))])
-async def stock_sentiment(
-    symbol: str,
-    _: User = Depends(get_current_user),
-) -> dict:
-    """Fetch news headlines + VADER/FinBERT sentiment for a stock symbol."""
-    return await sentiment.stock_sentiment(symbol.upper())
-
-
-@router.post("/sentiment/text")
-async def analyse_text(
-    text: str = Body(..., embed=True, max_length=2000),
-    _: User = Depends(get_current_user),
-) -> dict:
-    """Score the sentiment of arbitrary financial text."""
-    return await sentiment.analyse_text(text)
-
-
 # ── 3.4 Fraud ────────────────────────────────────────────────────────────────
 
 @router.get("/fraud", dependencies=[Depends(rate_limit(5, 60, "fraud"))])
@@ -164,8 +129,8 @@ async def copilot_chat(
     """Personalized RAG financial Q&A.
 
     Retrieves relevant knowledge-base docs, builds a snapshot of the caller's own
-    finances (spending, budgets, risk profile, portfolio), then calls Claude Haiku
-    so the answer is grounded in both the documents and the user's real data.
+    finances (spending, budgets, goals, recurring payments), and generates an
+    answer grounded in both the documents and the user's real data.
     """
     if not body.question.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Question cannot be empty")

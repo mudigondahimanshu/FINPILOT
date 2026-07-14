@@ -1,9 +1,9 @@
 """Per-user financial context for the personalized copilot (Phase 3.5+).
 
 Assembles a compact natural-language snapshot of the signed-in user's finances —
-spending summary, top categories, inferred risk profile, budget status, and
-portfolio holdings — so the RAG copilot can ground its answers in the user's
-actual data instead of replying generically.
+spending summary, top categories, inferred risk profile, and budget status —
+so the RAG copilot can ground its answers in the user's actual data instead of
+replying generically.
 
 Every section is best-effort: if a query fails or the user has no data for it,
 that section is skipped rather than failing the whole chat request.
@@ -32,7 +32,8 @@ async def build_financial_context(session: AsyncSession, user_id: uuid.UUID) -> 
     sections.append(await _spending_section(session, user_id))
     sections.append(await _preferences_section(session, user_id))
     sections.append(await _budget_section(session, user_id))
-    sections.append(await _portfolio_section(session, user_id))
+    sections.append(await _goals_section(session, user_id))
+    sections.append(await _subscriptions_section(session, user_id))
 
     body = "\n".join(s for s in sections if s)
     if not body.strip():
@@ -101,27 +102,40 @@ async def _budget_section(session: AsyncSession, user_id: uuid.UUID) -> str:
     return "\n".join(parts) if len(parts) > 1 else parts[0]
 
 
-async def _portfolio_section(session: AsyncSession, user_id: uuid.UUID) -> str:
-    # Imported lazily: portfolio_service pulls live quotes and is heavier than the
-    # transaction queries, so we keep it out of the module import path.
+async def _goals_section(session: AsyncSession, user_id: uuid.UUID) -> str:
     try:
-        from app.services import portfolio_service as pf_svc  # noqa: PLC0415
+        from app.services import goal_service  # noqa: PLC0415
 
-        summary = await pf_svc.get_portfolio_summary(session, user_id)
+        goals = await goal_service.list_goals(session, user_id)
     except Exception as exc:
-        log.debug("context: portfolio_summary failed: %s", exc)
+        log.debug("context: goals failed: %s", exc)
         return ""
-
-    open_holdings = [h for h in summary.holdings if float(h.quantity) > 0]
-    if not open_holdings:
-        return f"- Portfolio: ₹{float(summary.portfolio.cash_balance):,.0f} cash, no open positions"
-
-    holds_str = ", ".join(
-        f"{h.symbol} ({float(h.quantity):g} sh)" for h in open_holdings[:8]
+    if not goals:
+        return ""
+    parts = ", ".join(
+        f"{g.name} ({g.progress_pct:.0f}% of ₹{float(g.target_amount):,.0f})"
+        for g in goals[:5]
     )
-    pnl = summary.total_pnl
-    pnl_str = f"₹{float(pnl):,.0f}" if pnl is not None else "n/a"
-    return (
-        f"- Portfolio: ₹{float(summary.portfolio.cash_balance):,.0f} cash; "
-        f"holdings: {holds_str}; total P&L: {pnl_str}"
+    return f"- Savings goals: {parts}"
+
+
+async def _subscriptions_section(session: AsyncSession, user_id: uuid.UUID) -> str:
+    try:
+        from app.services import insights_service  # noqa: PLC0415
+
+        subs = await insights_service.subscriptions(session, user_id)
+    except Exception as exc:
+        log.debug("context: subscriptions failed: %s", exc)
+        return ""
+    if not subs["active_count"]:
+        return ""
+    names = ", ".join(s["name"] for s in subs["subscriptions"][:6] if s["active"])
+    line = (
+        f"- Recurring payments: {subs['active_count']} active "
+        f"(≈₹{subs['monthly_total']:,.0f}/month): {names}"
     )
+    if subs["price_increases"]:
+        line += "; price increases detected: " + ", ".join(
+            f"{p['name']} (+{p['price_change_pct']}%)" for p in subs["price_increases"]
+        )
+    return line

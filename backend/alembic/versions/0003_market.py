@@ -40,9 +40,17 @@ def upgrade() -> None:
     op.create_index("ix_ohlc_symbol_interval_ts", "ohlc", ["symbol", "interval", "timestamp"])
 
     # Promote to TimescaleDB hypertable partitioned by timestamp (1-day chunks).
+    # Conditional: skipped on hosts without the TimescaleDB extension.
     op.execute(
-        "SELECT create_hypertable('ohlc', 'timestamp',"
-        " chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)"
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+            PERFORM create_hypertable('ohlc', 'timestamp',
+                chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE);
+          END IF;
+        END $$
+        """
     )
 
     # Unique constraint so we don't double-insert the same candle.

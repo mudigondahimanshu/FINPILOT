@@ -11,18 +11,18 @@ const features = [
   },
   {
     icon: Activity,
-    title: "Paper-trade smarter",
-    body: "Virtual ₹1,00,000, real market data, an order-matching engine — never a rupee of real money.",
+    title: "Catches what you'd miss",
+    body: "Recurring payments detected automatically — cadence, next charge, and price increases before they hurt.",
   },
   {
     icon: Bot,
     title: "Explainable copilot",
-    body: "Ask about your portfolio and get grounded answers with the sources it reasoned from.",
+    body: "Ask about your own spending, budgets, and goals — grounded answers with the sources it reasoned from.",
   },
   {
     icon: ShieldCheck,
     title: "Fraud guard",
-    body: "Every login, trade, and transfer watched in real time with graph + anomaly detection.",
+    body: "Every transaction watched with graph + anomaly detection, explained in plain language.",
   },
 ];
 
@@ -49,7 +49,7 @@ export default function Home() {
             <span className="text-primary">protects your money</span>.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-            Predict risk, forecast spending, and learn to trade — with
+            Track spending, hit savings goals, and tame subscriptions — with
             bank-grade security and explainable AI that improves the more you
             use it.
           </p>
@@ -64,9 +64,6 @@ export default function Home() {
               Sign in
             </Link>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Start with virtual ₹1,00,000 — paper trading only.
-          </p>
         </section>
 
         <section className="mx-auto mt-20 grid max-w-5xl gap-4 sm:grid-cols-2">
@@ -85,8 +82,8 @@ export default function Home() {
 
       <footer className="container border-t border-border py-8">
         <p className="text-center text-xs text-muted-foreground">
-          ⚠️ For educational purposes only. Not financial advice. Paper trading
-          only — FinPilot never touches real money.
+          ⚠️ For educational purposes only. Not financial advice — FinPilot
+          never touches real money.
         </p>
       </footer>
     </div>

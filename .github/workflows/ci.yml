@@ -177,8 +177,10 @@ jobs:
           df -h /
 
       - name: Install Playwright
+        # Local install so playwright.config.ts can resolve @playwright/test.
+        working-directory: tests/e2e
         run: |
-          npm install -g @playwright/test
+          npm install
           npx playwright install --with-deps chromium
 
       - name: Start full stack

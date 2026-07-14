@@ -176,7 +176,7 @@ export default function RegisterPage() {
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground/70">
           By continuing you agree this is an educational tool. Not financial
-          advice. Paper trading only.
+          advice.
         </p>
       </div>
     </AuthShell>
