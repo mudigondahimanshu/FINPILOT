@@ -63,6 +63,7 @@ _embedder: object | None = None
 
 # ── Embedding ─────────────────────────────────────────────────────────────────
 
+
 def _get_embedder() -> object:
     global _embedder  # noqa: PLW0603
     if os.getenv("DISABLE_EMBEDDINGS", "") == "1":
@@ -70,6 +71,7 @@ def _get_embedder() -> object:
         raise RuntimeError(msg)
     if _embedder is None:
         from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+
         _embedder = SentenceTransformer(_EMBED_MODEL)
     return _embedder
 
@@ -95,6 +97,7 @@ def _embed(texts: list[str]) -> list[list[float]]:
 
 # ── Ingestion ─────────────────────────────────────────────────────────────────
 
+
 async def ingest_document(session: AsyncSession, title: str, body: str) -> int:
     """Chunk *body* into ≤512-char segments, embed, store in pgvector embeddings table."""
     chunks = _chunk_text(body, _MAX_CHUNK)
@@ -104,6 +107,7 @@ async def ingest_document(session: AsyncSession, title: str, body: str) -> int:
     vecs = await asyncio.to_thread(_embed, chunks)
 
     from sqlalchemy import text  # noqa: PLC0415
+
     inserted = 0
     for chunk, vec in zip(chunks, vecs, strict=False):
         await session.execute(
@@ -149,12 +153,14 @@ def _vec_to_pg(vec: list[float]) -> str:
 
 # ── Retrieval ─────────────────────────────────────────────────────────────────
 
+
 async def retrieve(session: AsyncSession, query: str, k: int = _TOP_K) -> list[dict]:
     """Return top-k chunks most similar to *query* via pgvector cosine search."""
     vec = await asyncio.to_thread(_embed, [query])
     q_vec = _vec_to_pg(vec[0])
 
     from sqlalchemy import text  # noqa: PLC0415
+
     result = await session.execute(
         text(
             """
@@ -168,12 +174,18 @@ async def retrieve(session: AsyncSession, query: str, k: int = _TOP_K) -> list[d
         {"q_vec": q_vec, "k": k},
     )
     return [
-        {"id": str(r.id), "content": r.content, "metadata": r.metadata, "similarity": float(r.similarity)} # noqa: E501
+        {
+            "id": str(r.id),
+            "content": r.content,
+            "metadata": r.metadata,
+            "similarity": float(r.similarity),
+        }  # noqa: E501
         for r in result.fetchall()
     ]
 
 
 # ── Generation ────────────────────────────────────────────────────────────────
+
 
 async def answer(
     session: AsyncSession,
@@ -196,9 +208,11 @@ async def answer(
     except Exception as exc:
         log.warning("retrieval unavailable, answering without knowledge base: %s", exc)
         chunks = []
-    relevant_chunks = [chunk for chunk in chunks if chunk.get("similarity", 0) >= _MIN_RELEVANCE][:3]
+    relevant_chunks = [chunk for chunk in chunks if chunk.get("similarity", 0) >= _MIN_RELEVANCE][
+        :3
+    ]
     context = "\n\n".join(
-        f"[{i+1}] {chunk['content']}" for i, chunk in enumerate(relevant_chunks)
+        f"[{i + 1}] {chunk['content']}" for i, chunk in enumerate(relevant_chunks)
     )
     sources = [{"id": str(i + 1), **chunk} for i, chunk in enumerate(relevant_chunks)]
 
@@ -210,13 +224,14 @@ async def answer(
     if relevant_chunks:
         top_sim = relevant_chunks[0]["similarity"]
         reason_parts.append(
-            f"Found {len(relevant_chunks)} relevant document chunk(s) with top similarity {top_sim:.2f}, "
-            f"grounded in: {', '.join(f'[{i+1}]' for i in range(len(relevant_chunks)))}."
+            f"Found {len(relevant_chunks)} relevant document chunk(s) "
+            f"with top similarity {top_sim:.2f}, "
+            f"grounded in: {', '.join(f'[{i + 1}]' for i in range(len(relevant_chunks)))}."
         )
     else:
         reason_parts.append("No matching knowledge-base documents for this query.")
     if personalized:
-        reason_parts.append("Relevant account information was used to answer this question.")
+        reason_parts.append("Answer personalized with relevant account information.")
     reasoning = " ".join(reason_parts)
 
     generated = await asyncio.to_thread(
@@ -225,16 +240,22 @@ async def answer(
     if generated is not None:
         answer_text, model = generated
     else:
-        answer_text, model = _local_answer(question, relevant_chunks, relevant_user_context), "local"
+        answer_text, model = (
+            _local_answer(question, relevant_chunks, relevant_user_context),
+            "local",
+        )
 
     return {
-        "answer": answer_text, "sources": sources,
-        "reasoning": reasoning, "model": model,
+        "answer": answer_text,
+        "sources": sources,
+        "reasoning": reasoning,
+        "model": model,
         "personalized": personalized,
     }
 
 
 # ── LLM provider chain ────────────────────────────────────────────────────────
+
 
 def _build_messages(
     question: str, context: str, history: list[dict], user_context: str | None
@@ -307,8 +328,7 @@ def _gemini_generate(api_key: str, messages: list[dict]) -> tuple[str, str]:
 
     model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
     contents = [
-        {"role": "model" if m["role"] == "assistant" else "user",
-         "parts": [{"text": m["content"]}]}
+        {"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
         for m in messages
     ]
     resp = httpx.post(
@@ -360,9 +380,8 @@ def _ollama_generate(base_url: str, messages: list[dict]) -> tuple[str, str]:
 
 # ── Keyless answer engine (always available) ─────────────────────────────────
 
-def _local_answer(
-    question: str, chunks: list[dict], user_context: str | None = None
-) -> str:
+
+def _local_answer(question: str, chunks: list[dict], user_context: str | None = None) -> str:
     """Compose a grounded answer from retrieved chunks + the user's own data.
 
     No external API involved, so the copilot always responds even with zero
@@ -376,7 +395,10 @@ def _local_answer(
     if any(token in normalized for token in ("haha", "lol", "😂", "😄")) and len(normalized) < 40:
         return "🙂 What would you like to explore next?"
     if normalized in {"hi", "hello", "hey", "thanks", "thank you", "thank you!"}:
-        return "Hi! Ask me about budgeting, spending, subscriptions, goals, or a general finance concept."
+        return (
+            "Hi! Ask me about budgeting, spending, subscriptions, goals, "
+            "or a general finance concept."
+        )
     if any(token in normalized for token in ("python", "pythin", "pyhton", "pyton")) and any(
         token in normalized for token in ("print", "output", "display")
     ):
@@ -392,14 +414,17 @@ def _local_answer(
     if "capital gain" in normalized or "capital gains" in normalized:
         return (
             "A basic capital-gain calculation is:\n\n"
-            "**Capital gain = sale proceeds − eligible purchase cost − eligible selling costs.**\n\n"
-            "Then determine which part is taxable after any applicable exemptions or loss set-offs, "
-            "and apply the rate and rules for the asset and tax year. In India, the treatment can "
-            "vary by asset type, purchase and sale dates, holding period, and the tax rules in force. "
+            "**Capital gain = sale proceeds − eligible purchase cost "
+            "− eligible selling costs.**\n\n"
+            "Then determine which part is taxable after any applicable exemptions "
+            "or loss set-offs, and apply the rate and rules for the asset and tax year. "
+            "In India, treatment can vary by asset type, purchase and sale dates, "
+            "holding period, and the tax rules in force. "
             "Your FinPilot profile does not include asset purchase prices or sale details, so it "
             "cannot calculate your personal tax bill from the current data.\n\n"
-            "To estimate it, gather the asset type, purchase date and cost, sale date and proceeds, "
-            "eligible fees, and any capital losses or exemptions. Verify current rates with the "
+            "To estimate it, gather the asset type, purchase date and cost, "
+            "sale date and proceeds, eligible fees, and any capital losses or exemptions. "
+            "Verify current rates with the "
             "Income Tax Department or a qualified tax professional."
         )
 
@@ -418,7 +443,8 @@ def _local_answer(
     return (
         "I don't have a configured language model or a matching reference document to answer "
         "that question yet. I can still help with common topics such as capital-gains basics, "
-        "Python `print()` examples, and questions about the data available in your FinPilot account."
+        "Python `print()` examples, and questions about the data available "
+        "in your FinPilot account."
     )
 
 
@@ -434,7 +460,18 @@ def _relevant_user_context(question: str, user_context: str | None) -> str:
     if not personal_question:
         return ""
     categories: list[str] = []
-    if any(word in q for word in ("spend", "spending", "expense", "income", "cash flow", "saving rate", "how am i doing")):
+    if any(
+        word in q
+        for word in (
+            "spend",
+            "spending",
+            "expense",
+            "income",
+            "cash flow",
+            "saving rate",
+            "how am i doing",
+        )
+    ):
         categories.extend(("Income", "Expenses", "Savings rate", "Top spending categories"))
     if any(word in q for word in ("budget", "budgets", "limit")):
         categories.append("Active budgets")

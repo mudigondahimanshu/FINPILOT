@@ -29,9 +29,24 @@ resource "aws_security_group" "ecs_tasks" {
 resource "aws_security_group" "alb" {
   name   = "finpilot-alb-${var.environment}"
   vpc_id = module.vpc.vpc_id
-  ingress { from_port = 443; to_port = 443; protocol = "tcp"; cidr_blocks = ["0.0.0.0/0"] }
-  ingress { from_port = 80; to_port = 80; protocol = "tcp"; cidr_blocks = ["0.0.0.0/0"] }
-  egress  { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 resource "aws_lb" "main" {
@@ -68,7 +83,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_iam_role" "ecs_execution" {
-  name               = "finpilot-ecs-execution-${var.environment}"
+  name = "finpilot-ecs-execution-${var.environment}"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -91,16 +106,16 @@ resource "aws_ecs_task_definition" "backend" {
   execution_role_arn       = aws_iam_role.ecs_execution.arn
 
   container_definitions = jsonencode([{
-    name  = "backend"
-    image = var.backend_image
+    name         = "backend"
+    image        = var.backend_image
     portMappings = [{ containerPort = 8000, protocol = "tcp" }]
     environment = [
       { name = "ENVIRONMENT", value = var.environment },
     ]
     secrets = [
-      { name = "DATABASE_URL",    valueFrom = "${aws_secretsmanager_secret.app.arn}:DATABASE_URL::" },
-      { name = "REDIS_URL",       valueFrom = "${aws_secretsmanager_secret.app.arn}:REDIS_URL::" },
-      { name = "JWT_SECRET_KEY",  valueFrom = "${aws_secretsmanager_secret.app.arn}:JWT_SECRET_KEY::" },
+      { name = "DATABASE_URL", valueFrom = "${aws_secretsmanager_secret.app.arn}:DATABASE_URL::" },
+      { name = "REDIS_URL", valueFrom = "${aws_secretsmanager_secret.app.arn}:REDIS_URL::" },
+      { name = "JWT_SECRET_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:JWT_SECRET_KEY::" },
       { name = "ANTHROPIC_API_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:ANTHROPIC_API_KEY::" },
     ]
     logConfiguration = {

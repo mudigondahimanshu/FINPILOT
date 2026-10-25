@@ -22,9 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Terraform 1.7.5
+      - name: Install Terraform 1.8.5
         run: |
-          TERRAFORM_VERSION="1.7.5"
+          TERRAFORM_VERSION="1.8.5"
           wget -qO /tmp/terraform.zip \
             "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
           sudo unzip -q /tmp/terraform.zip -d /usr/local/bin/
@@ -96,9 +96,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Terraform 1.7.5
+      - name: Install Terraform 1.8.5
         run: |
-          TERRAFORM_VERSION="1.7.5"
+          TERRAFORM_VERSION="1.8.5"
           wget -qO /tmp/terraform.zip \
             "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
           sudo unzip -q /tmp/terraform.zip -d /usr/local/bin/
@@ -161,9 +161,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Terraform 1.7.5
+      - name: Install Terraform 1.8.5
         run: |
-          TERRAFORM_VERSION="1.7.5"
+          TERRAFORM_VERSION="1.8.5"
           wget -qO /tmp/terraform.zip \
             "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
           sudo unzip -q /tmp/terraform.zip -d /usr/local/bin/

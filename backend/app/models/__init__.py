@@ -5,8 +5,8 @@ from app.models.audit_log import AuditLog
 from app.models.budget import Budget
 from app.models.category import Category
 from app.models.embedding import Embedding
-from app.models.goal import Goal
 from app.models.fraud_alert_decision import FraudAlertDecision
+from app.models.goal import Goal
 from app.models.transaction import Transaction
 from app.models.user import User
 

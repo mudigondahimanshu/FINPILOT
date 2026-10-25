@@ -33,10 +33,10 @@ resource "aws_db_instance" "main" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  multi_az               = var.environment == "production"
-  skip_final_snapshot    = var.environment != "production"
-  deletion_protection    = var.environment == "production"
-  backup_retention_period = 7
+  multi_az                     = var.environment == "production"
+  skip_final_snapshot          = var.environment != "production"
+  deletion_protection          = var.environment == "production"
+  backup_retention_period      = 7
   performance_insights_enabled = true
 
   parameter_group_name = aws_db_parameter_group.main.name
@@ -52,6 +52,6 @@ resource "aws_db_parameter_group" "main" {
   }
   parameter {
     name  = "log_min_duration_statement"
-    value = "1000"  # log queries > 1s
+    value = "1000" # log queries > 1s
   }
 }
