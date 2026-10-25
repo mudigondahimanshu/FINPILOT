@@ -6,13 +6,13 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import set_rls_user
 from app.models.goal import Goal
 from app.models.transaction import Transaction
-from app.schemas.goal import GoalCreate, GoalRead, GoalUpdate
+from app.schemas.goal import GoalCreate, GoalRead, GoalSavingsSummary, GoalUpdate
 
 
 async def _avg_monthly_net_savings(session: AsyncSession, user_id: uuid.UUID) -> Decimal:
@@ -68,6 +68,41 @@ async def list_goals(session: AsyncSession, user_id: uuid.UUID) -> list[GoalRead
     return [_to_read(g, monthly) for g in goals]
 
 
+async def savings_summary(
+    session: AsyncSession, user_id: uuid.UUID
+) -> GoalSavingsSummary:
+    """Summarize transaction cash flow and savings already assigned to goals."""
+    await set_rls_user(session, user_id)
+    income, expenses = (
+        await session.execute(
+            select(
+                func.coalesce(
+                    func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)), 0
+                ),
+                func.coalesce(
+                    func.sum(case((Transaction.amount < 0, -Transaction.amount), else_=0)), 0
+                ),
+            ).where(Transaction.user_id == user_id)
+        )
+    ).one()
+    allocated = (
+        await session.execute(
+            select(func.coalesce(func.sum(Goal.saved_amount), 0)).where(Goal.user_id == user_id)
+        )
+    ).scalar_one()
+    income = Decimal(income)
+    expenses = Decimal(expenses)
+    allocated = Decimal(allocated)
+    net = income - expenses
+    return GoalSavingsSummary(
+        total_income=income,
+        total_expenses=expenses,
+        net_savings=net,
+        allocated_to_goals=allocated,
+        available_savings=max(net - allocated, Decimal(0)),
+    )
+
+
 async def create_goal(session: AsyncSession, user_id: uuid.UUID, data: GoalCreate) -> GoalRead:
     await set_rls_user(session, user_id)
     goal = Goal(user_id=user_id, **data.model_dump())
@@ -99,6 +134,13 @@ async def update_goal(
 async def contribute(
     session: AsyncSession, user_id: uuid.UUID, goal: Goal, amount: Decimal
 ) -> GoalRead:
+    if amount > 0:
+        summary = await savings_summary(session, user_id)
+        if amount > summary.available_savings:
+            raise ValueError(
+                "Contribution exceeds available savings "
+                f"({summary.available_savings:.2f} INR available)"
+            )
     goal.saved_amount = max(goal.saved_amount + amount, Decimal(0))
     await session.commit()
     await session.refresh(goal)

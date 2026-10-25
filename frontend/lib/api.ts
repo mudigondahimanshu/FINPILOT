@@ -43,9 +43,15 @@ async function parseError(res: Response): Promise<string> {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  // FormData must keep the browser-generated multipart boundary. Setting a
+  // JSON content type here makes FastAPI receive the request without its file.
+  if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers,
     credentials: "include",
   });
   if (!res.ok) throw new ApiError(res.status, await parseError(res));
@@ -302,6 +308,7 @@ export const api = {
 
   goals: {
     list: () => authFetch<Goal[]>("/goals"),
+    savingsSummary: () => authFetch<GoalSavingsSummary>("/goals/savings-summary"),
     create: (body: GoalCreate) =>
       authFetch<Goal>("/goals", { method: "POST", body: JSON.stringify(body) }),
     update: (id: string, body: Partial<GoalCreate>) =>
@@ -345,6 +352,14 @@ export interface Goal {
   progress_pct: number;
   projected_completion: string | null;
   monthly_needed: string | null;
+}
+
+export interface GoalSavingsSummary {
+  total_income: string;
+  total_expenses: string;
+  net_savings: string;
+  allocated_to_goals: string;
+  available_savings: string;
 }
 
 export interface GoalCreate {
@@ -438,10 +453,28 @@ export interface CopilotResponse {
 }
 
 export interface FraudResult {
-  isolation_forest: { anomaly_score: number; is_anomaly: boolean }[];
-  velocity_flags: { description: string; signal: string; count: number }[];
-  connected_components: string[][];
-  cycles: string[][];
+  total_transactions: number;
+  isolation_forest_anomalies: number;
+  anomalous_transactions: Array<{
+    id: string;
+    description: string;
+    merchant: string | null;
+    amount: number;
+    date: string;
+    anomaly_score: number;
+    is_anomaly: boolean;
+    decision: "keep" | "remove" | null;
+  }>;
+  velocity_signals: Array<{
+    signal: string;
+    merchant: string;
+    transactions_in_window: number;
+    window_minutes: number;
+    start_date: string;
+  }>;
+  graph_cycles: string[][];
+  graph_components: number;
+  largest_component_size: number;
 }
 
 export interface ClassifyResult {
@@ -468,6 +501,19 @@ export function copilotChat(
 
 export function fetchFraudAnalysis(): Promise<FraudResult> {
   return authFetch<FraudResult>("/ml/fraud");
+}
+
+export function setFraudAlertDecision(
+  transactionId: string,
+  decision: "keep" | "remove",
+): Promise<{ transaction_id: string; decision: "keep" | "remove" }> {
+  return authFetch<{ transaction_id: string; decision: "keep" | "remove" }>(
+    `/ml/fraud/alerts/${transactionId}/decision`,
+    {
+    method: "PUT",
+    body: JSON.stringify({ decision }),
+    },
+  );
 }
 
 export function classifyTransaction(

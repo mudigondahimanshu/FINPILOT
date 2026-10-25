@@ -43,3 +43,13 @@ class GoalRead(BaseModel):
     monthly_needed: Decimal | None = None  # to hit target_date, if set
 
     model_config = {"from_attributes": True}
+
+
+class GoalSavingsSummary(BaseModel):
+    """Cash flow available for assigning to savings goals."""
+
+    total_income: Decimal
+    total_expenses: Decimal
+    net_savings: Decimal
+    allocated_to_goals: Decimal
+    available_savings: Decimal

@@ -39,14 +39,20 @@ log = logging.getLogger(__name__)
 _EMBED_MODEL = "all-MiniLM-L6-v2"
 _EMBED_DIM = 384
 _TOP_K = 5
+_MIN_RELEVANCE = 0.45
 _MAX_CHUNK = 512  # characters
 _LLM_TIMEOUT = 30.0  # seconds
 
 _SYSTEM_PROMPT = (
     "You are FinPilot, a personalized AI financial copilot. You are given (a) retrieved "
-    "knowledge-base context and (b) the user's own financial profile. Tailor your answer "
-    "to the user's actual spending, budgets, risk profile, and portfolio when relevant, "
-    "and reference their real numbers. Cite knowledge-base sources as [1], [2], etc. "
+    "knowledge-base context and, only when relevant, (b) a small part of the user's own "
+    "financial profile. Answer the question asked first. Never repeat or dump the full "
+    "financial profile. Use only profile facts that directly help answer this question. "
+    "Do not force personalization into unrelated questions or small talk. Treat old assistant "
+    "messages in conversation history as context only; use them to resolve follow-up references, "
+    "and do not repeat an old answer unless asked. "
+    "Cite knowledge-base "
+    "sources as [1], [2], etc. "
     "Give educational, data-grounded guidance — explain trade-offs and general principles "
     "rather than issuing licensed investment advice, and remind the user to do their own "
     "research for specific buy/sell decisions. If you lack the data to answer, say so."
@@ -190,32 +196,36 @@ async def answer(
     except Exception as exc:
         log.warning("retrieval unavailable, answering without knowledge base: %s", exc)
         chunks = []
-    context = "\n\n".join(f"[{i+1}] {c['content']}" for i, c in enumerate(chunks))
-    sources = [{"id": str(i + 1), **c} for i, c in enumerate(chunks)]
+    relevant_chunks = [chunk for chunk in chunks if chunk.get("similarity", 0) >= _MIN_RELEVANCE][:3]
+    context = "\n\n".join(
+        f"[{i+1}] {chunk['content']}" for i, chunk in enumerate(relevant_chunks)
+    )
+    sources = [{"id": str(i + 1), **chunk} for i, chunk in enumerate(relevant_chunks)]
 
-    personalized = bool(user_context)
+    relevant_user_context = _relevant_user_context(question, user_context)
+    personalized = bool(relevant_user_context)
 
     # Build reasoning: explain which sources informed the answer
     reason_parts: list[str] = []
-    if chunks:
-        top_sim = chunks[0]["similarity"]
+    if relevant_chunks:
+        top_sim = relevant_chunks[0]["similarity"]
         reason_parts.append(
-            f"Found {len(chunks)} relevant document chunk(s) with top similarity {top_sim:.2f}, "
-            f"grounded in: {', '.join(f'[{i+1}]' for i in range(len(chunks)))}."
+            f"Found {len(relevant_chunks)} relevant document chunk(s) with top similarity {top_sim:.2f}, "
+            f"grounded in: {', '.join(f'[{i+1}]' for i in range(len(relevant_chunks)))}."
         )
     else:
         reason_parts.append("No matching knowledge-base documents for this query.")
     if personalized:
-        reason_parts.append("Answer personalized using your spending, budgets, and portfolio.")
+        reason_parts.append("Relevant account information was used to answer this question.")
     reasoning = " ".join(reason_parts)
 
     generated = await asyncio.to_thread(
-        _generate, question, context, history or [], user_context
+        _generate, question, context, history or [], relevant_user_context
     )
     if generated is not None:
         answer_text, model = generated
     else:
-        answer_text, model = _local_answer(question, chunks, user_context), "local"
+        answer_text, model = _local_answer(question, relevant_chunks, relevant_user_context), "local"
 
     return {
         "answer": answer_text, "sources": sources,
@@ -229,9 +239,16 @@ async def answer(
 def _build_messages(
     question: str, context: str, history: list[dict], user_context: str | None
 ) -> list[dict]:
-    user_block = f"Context:\n{context}\n\n"
+    user_block = (
+        "Retrieved reference material (use only if it helps answer the question):\n"
+        f"{context or '(no relevant reference material found)'}\n\n"
+    )
     if user_context:
-        user_block += f"{user_context}\n\n"
+        user_block += (
+            "Relevant user financial facts (use only the facts that directly help; "
+            "never repeat this block verbatim):\n"
+            f"{user_context}\n\n"
+        )
     user_block += f"Question: {question}"
     return [
         *[{"role": m["role"], "content": m["content"]} for m in history[-6:]],
@@ -351,28 +368,87 @@ def _local_answer(
     No external API involved, so the copilot always responds even with zero
     provider configuration.
     """
-    parts: list[str] = []
+    normalized = " ".join(question.lower().strip().split())
 
-    relevant = [c for c in chunks if c.get("similarity", 0) > 0.3][:3]
-    if relevant:
-        parts.append("Here's what the knowledge base says about your question:")
-        for i, chunk in enumerate(relevant, start=1):
-            excerpt = chunk["content"][:400].strip()
-            parts.append(f"[{i}] {excerpt}")
-    if user_context:
-        parts.append(
-            "Looking at your own finances, here's the snapshot I'd weigh this against:\n"
-            + user_context
-        )
-    if not relevant and not user_context:
+    # Useful, deterministic answers for common prompts when no language model
+    # provider is configured. These templates answer the question directly and
+    # avoid pretending the user's spending history contains tax or coding data.
+    if any(token in normalized for token in ("haha", "lol", "😂", "😄")) and len(normalized) < 40:
+        return "🙂 What would you like to explore next?"
+    if normalized in {"hi", "hello", "hey", "thanks", "thank you", "thank you!"}:
+        return "Hi! Ask me about budgeting, spending, subscriptions, goals, or a general finance concept."
+    if any(token in normalized for token in ("python", "pythin", "pyhton", "pyton")) and any(
+        token in normalized for token in ("print", "output", "display")
+    ):
         return (
-            "I couldn't find knowledge-base material matching that question, and I "
-            "don't have enough of your financial data yet to answer from it. Try "
-            "importing your transactions or asking about budgeting, investing "
-            "basics, or your spending."
+            "Use Python's `print()` function to show text or a value:\n\n"
+            "```python\n"
+            'print("Hello, world!")\n'
+            "\n"
+            "amount = 250\n"
+            "print(amount)\n"
+            "```"
         )
-    parts.append(
-        "This summary is drawn directly from your data and the cited sources — "
-        "consider it a starting point and do your own research before acting on it."
+    if "capital gain" in normalized or "capital gains" in normalized:
+        return (
+            "A basic capital-gain calculation is:\n\n"
+            "**Capital gain = sale proceeds − eligible purchase cost − eligible selling costs.**\n\n"
+            "Then determine which part is taxable after any applicable exemptions or loss set-offs, "
+            "and apply the rate and rules for the asset and tax year. In India, the treatment can "
+            "vary by asset type, purchase and sale dates, holding period, and the tax rules in force. "
+            "Your FinPilot profile does not include asset purchase prices or sale details, so it "
+            "cannot calculate your personal tax bill from the current data.\n\n"
+            "To estimate it, gather the asset type, purchase date and cost, sale date and proceeds, "
+            "eligible fees, and any capital losses or exemptions. Verify current rates with the "
+            "Income Tax Department or a qualified tax professional."
+        )
+
+    relevant_context = user_context or ""
+    relevant_chunks = [c for c in chunks if c.get("similarity", 0) >= _MIN_RELEVANCE][:3]
+    if relevant_chunks:
+        snippets = "\n\n".join(
+            f"[{index}] {chunk['content'][:500].strip()}"
+            for index, chunk in enumerate(relevant_chunks, start=1)
+        )
+        return f"I found these reference notes that may help answer your question:\n\n{snippets}"
+    if relevant_context:
+        # This is only reached for a question that explicitly asks about the
+        # user's own finances. Share the relevant subsection, not the full profile.
+        return f"From the information available in your account:\n\n{relevant_context}"
+    return (
+        "I don't have a configured language model or a matching reference document to answer "
+        "that question yet. I can still help with common topics such as capital-gains basics, "
+        "Python `print()` examples, and questions about the data available in your FinPilot account."
     )
-    return "\n\n".join(parts)
+
+
+def _relevant_user_context(question: str, user_context: str | None) -> str:
+    """Select only profile lines that match an explicitly personal finance question."""
+    if not user_context:
+        return ""
+    q = question.lower()
+    words = set(q.replace("?", " ").replace("!", " ").replace(",", " ").split())
+    personal_question = bool(words & {"my", "mine", "our", "ours"}) or any(
+        phrase in q for phrase in ("for me", "in my account", "how am i doing")
+    )
+    if not personal_question:
+        return ""
+    categories: list[str] = []
+    if any(word in q for word in ("spend", "spending", "expense", "income", "cash flow", "saving rate", "how am i doing")):
+        categories.extend(("Income", "Expenses", "Savings rate", "Top spending categories"))
+    if any(word in q for word in ("budget", "budgets", "limit")):
+        categories.append("Active budgets")
+    if any(word in q for word in ("goal", "goals", "allocate", "saved")):
+        categories.append("Savings goals")
+    if any(word in q for word in ("subscription", "subscriptions", "recurring payment")):
+        categories.append("Recurring payments")
+    if any(word in q for word in ("risk profile", "risk tolerance")):
+        categories.append("Inferred risk profile")
+    if not categories:
+        return ""
+    lines = [
+        line.strip()
+        for line in user_context.splitlines()
+        if any(category.lower() in line.lower() for category in categories)
+    ]
+    return "\n".join(lines)

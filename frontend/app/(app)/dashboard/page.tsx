@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { api, type Overview, type Transaction } from "@/lib/api";
+import { api, type GoalSavingsSummary, type Overview, type Transaction } from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { formatINR } from "@/lib/utils";
 import {
@@ -13,6 +13,7 @@ import {
   Loader2,
   PiggyBank,
   Target,
+  Wallet,
 } from "lucide-react";
 import {
   Area,
@@ -217,6 +218,36 @@ function GoalsPanel({ goals }: { goals: Overview["goals"] }) {
   );
 }
 
+function AvailableToAllocatePanel({ savings }: { savings: GoalSavingsSummary }) {
+  const available = Number(savings.available_savings);
+  return (
+    <Link
+      href="/goals"
+      className="block rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      aria-label={`Available to allocate ${formatINR(available)}. Open goals to assign savings.`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-success" />
+            <h3 className="text-sm font-semibold">Available to allocate</h3>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Remaining after spending and goal contributions
+          </p>
+        </div>
+        <ArrowRight className="h-4 w-4 text-primary" />
+      </div>
+      <p className={`tabular mt-5 text-2xl font-semibold ${available > 0 ? "text-success" : "text-foreground"}`}>
+        {formatINR(available)}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {formatINR(Number(savings.allocated_to_goals))} already assigned to goals · Manage goals
+      </p>
+    </Link>
+  );
+}
+
 function SubscriptionsPanel({ subs }: { subs: Overview["subscriptions"] }) {
   return (
     <div className="rounded-lg border border-border bg-card p-5">
@@ -354,18 +385,21 @@ export default function DashboardPage() {
   const name = user?.full_name?.split(" ")[0] ?? "there";
 
   const [data, setData] = React.useState<Overview | null>(null);
+  const [savings, setSavings] = React.useState<GoalSavingsSummary | null>(null);
   const [recent, setRecent] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     async function load() {
       try {
-        const [ov, txns] = await Promise.all([
+        const [ov, txns, savingsSummary] = await Promise.all([
           api.overview(),
           api.transactions.list({ page: 1, page_size: 5 }),
+          api.goals.savingsSummary(),
         ]);
         setData(ov);
         setRecent(txns.items);
+        setSavings(savingsSummary);
       } catch {
         // Backend may not be reachable during static preview.
       } finally {
@@ -395,6 +429,7 @@ export default function DashboardPage() {
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             <BudgetsPanel budgets={data.budgets} />
             <GoalsPanel goals={data.goals} />
+            {savings && <AvailableToAllocatePanel savings={savings} />}
             <SubscriptionsPanel subs={data.subscriptions} />
           </div>
 

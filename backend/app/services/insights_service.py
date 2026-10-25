@@ -79,7 +79,8 @@ async def subscriptions(session: AsyncSession, user_id: uuid.UUID) -> dict:
         monthly_total += monthly_equiv
 
         # A subscription is "active" if we'd expect another charge soon.
-        active = (now.date() - last).days <= cadence_days * 2
+        last_day = last.date() if isinstance(last, datetime) else last
+        active = (now.date() - last_day).days <= cadence_days * 2
 
         items.append({
             "name": (r["merchant"] or r["norm_desc"]).title(),

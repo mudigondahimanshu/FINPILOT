@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
@@ -15,7 +16,7 @@ from app.ml import ab_testing, classifier, forecaster, fraud_detector, rag, user
 from app.ml import user_preferences as user_prefs
 from app.ml.bandit import log_feedback, recommend
 from app.models.user import User
-from app.services import transaction_service
+from app.services import fraud_alert_service, transaction_service
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 
@@ -96,6 +97,9 @@ async def forecast_spending(
 
 # ── 3.4 Fraud ────────────────────────────────────────────────────────────────
 
+class FraudAlertDecisionRequest(BaseModel):
+    decision: Literal["keep", "remove"]
+
 @router.get("/fraud", dependencies=[Depends(rate_limit(5, 60, "fraud"))])
 async def fraud_analysis(
     current_user: User = Depends(get_current_user),
@@ -104,8 +108,38 @@ async def fraud_analysis(
     """Full fraud analysis: Isolation Forest + BFS graph + velocity checks."""
     rows = await transaction_service.list_all_for_fraud(session, current_user.id)
     if not rows:
-        return {"message": "No transactions to analyse"}
-    return await fraud_detector.full_fraud_analysis(rows)
+        return {
+            "total_transactions": 0,
+            "isolation_forest_anomalies": 0,
+            "anomalous_transactions": [],
+            "velocity_signals": [],
+            "graph_cycles": [],
+            "graph_components": 0,
+            "largest_component_size": 0,
+        }
+    result = await fraud_detector.full_fraud_analysis(rows)
+    transaction_ids = [uuid.UUID(row["id"]) for row in result["anomalous_transactions"]]
+    decisions = await fraud_alert_service.get_decisions(
+        session, current_user.id, transaction_ids
+    )
+    for alert in result["anomalous_transactions"]:
+        alert["decision"] = decisions.get(alert["id"])
+    return result
+
+
+@router.put("/fraud/alerts/{transaction_id}/decision")
+async def decide_fraud_alert(
+    transaction_id: uuid.UUID,
+    body: FraudAlertDecisionRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    saved = await fraud_alert_service.save_decision(
+        session, current_user.id, transaction_id, body.decision
+    )
+    if not saved:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Transaction not found")
+    return {"transaction_id": str(transaction_id), "decision": body.decision}
 
 
 # ── 3.5 RAG Copilot ──────────────────────────────────────────────────────────

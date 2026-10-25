@@ -12,7 +12,7 @@ from app.api.deps import get_current_user, rate_limit
 from app.core.database import get_db
 from app.models.goal import Goal
 from app.models.user import User
-from app.schemas.goal import GoalContribute, GoalCreate, GoalRead, GoalUpdate
+from app.schemas.goal import GoalContribute, GoalCreate, GoalRead, GoalSavingsSummary, GoalUpdate
 from app.services import goal_service
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -24,6 +24,14 @@ async def list_goals(
     session: AsyncSession = Depends(get_db),
 ) -> list[GoalRead]:
     return await goal_service.list_goals(session, current_user.id)
+
+
+@router.get("/savings-summary", response_model=GoalSavingsSummary)
+async def get_savings_summary(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> GoalSavingsSummary:
+    return await goal_service.savings_summary(session, current_user.id)
 
 
 @router.post(
@@ -66,7 +74,10 @@ async def contribute(
     session: AsyncSession = Depends(get_db),
 ) -> GoalRead:
     goal = await _get_or_404(session, current_user.id, goal_id)
-    return await goal_service.contribute(session, current_user.id, goal, data.amount)
+    try:
+        return await goal_service.contribute(session, current_user.id, goal, data.amount)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

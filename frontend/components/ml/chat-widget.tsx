@@ -22,6 +22,50 @@ const STARTERS = [
   "How do I calculate my tax liability on capital gains?",
 ];
 
+function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, index) => {
+    const key = `${keyPrefix}-${index}`;
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={key}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={key} className="rounded bg-background/70 px-1 py-0.5 font-mono text-[0.9em]">{part.slice(1, -1)}</code>;
+    }
+    return <React.Fragment key={key}>{part}</React.Fragment>;
+  });
+}
+
+function MessageContent({ content }: { content: string }) {
+  const blocks: React.ReactNode[] = [];
+  const fencedCode = /```([\w+-]*)\n([\s\S]*?)```/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  let index = 0;
+  while ((match = fencedCode.exec(content)) !== null) {
+    if (match.index > cursor) {
+      blocks.push(
+        <p key={`text-${index++}`} className="whitespace-pre-wrap">
+          {renderInline(content.slice(cursor, match.index).trim(), `inline-${index}`)}
+        </p>,
+      );
+    }
+    blocks.push(
+      <pre key={`code-${index++}`} className="overflow-x-auto rounded-md border border-border/70 bg-background/70 p-3 font-mono text-xs leading-relaxed">
+        <code>{match[2]}</code>
+      </pre>,
+    );
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < content.length || blocks.length === 0) {
+    blocks.push(
+      <p key={`text-${index}`} className="whitespace-pre-wrap">
+        {renderInline(content.slice(cursor).trim(), `inline-${index}`)}
+      </p>,
+    );
+  }
+  return <div className="space-y-2">{blocks}</div>;
+}
+
 export function ChatWidget() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
@@ -131,7 +175,7 @@ export function ChatWidget() {
                   </span>
                 )}
 
-                <p className="whitespace-pre-wrap">{m.content}</p>
+                <MessageContent content={m.content} />
 
                 {/* Reasoning display */}
                 {m.reasoning && (

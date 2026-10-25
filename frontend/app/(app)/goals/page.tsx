@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { api, type Goal } from "@/lib/api";
+import { api, type Goal, type GoalSavingsSummary } from "@/lib/api";
 import { formatINR } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,15 +45,18 @@ function ProgressRing({ pct }: { pct: number }) {
 
 function GoalCard({
   goal,
+  availableSavings,
   onContribute,
   onDelete,
 }: {
   goal: Goal;
+  availableSavings: number;
   onContribute: (amount: number) => Promise<void>;
   onDelete: () => void;
 }) {
   const [amount, setAmount] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [contributeError, setContributeError] = React.useState<string | null>(null);
   const done = goal.progress_pct >= 100;
 
   return (
@@ -115,9 +118,12 @@ function GoalCard({
             const v = Number(amount);
             if (v <= 0) return;
             setBusy(true);
+            setContributeError(null);
             try {
               await onContribute(v);
               setAmount("");
+            } catch (err) {
+              setContributeError(err instanceof Error ? err.message : "Couldn't add savings");
             } finally {
               setBusy(false);
             }
@@ -126,15 +132,30 @@ function GoalCard({
           <Input
             type="number"
             min="1"
+            max={availableSavings}
             placeholder="Add amount (₹)"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="h-9"
           />
-          <Button type="submit" size="sm" disabled={busy || Number(amount) <= 0}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={busy || Number(amount) <= 0 || Number(amount) > availableSavings}
+          >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add savings"}
           </Button>
         </form>
+      )}
+      {!done && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Available to allocate: {formatINR(availableSavings)}
+        </p>
+      )}
+      {contributeError && (
+        <p className="mt-2 text-xs text-destructive" role="alert">
+          {contributeError}
+        </p>
       )}
     </div>
   );
@@ -142,6 +163,7 @@ function GoalCard({
 
 export default function GoalsPage() {
   const [goals, setGoals] = React.useState<Goal[]>([]);
+  const [savings, setSavings] = React.useState<GoalSavingsSummary | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -153,7 +175,12 @@ export default function GoalsPage() {
 
   const load = React.useCallback(async () => {
     try {
-      setGoals(await api.goals.list());
+      const [nextGoals, nextSavings] = await Promise.all([
+        api.goals.list(),
+        api.goals.savingsSummary(),
+      ]);
+      setGoals(nextGoals);
+      setSavings(nextSavings);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load goals");
@@ -202,6 +229,46 @@ export default function GoalsPage() {
           {showForm ? "Cancel" : "New goal"}
         </Button>
       </div>
+
+      {savings && (
+        <section
+          className="rounded-lg border border-border bg-card p-5"
+          aria-labelledby="savings-overview-title"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="savings-overview-title" className="text-base font-semibold">
+                Savings overview
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Income minus spending gives net savings. Adding money to a goal moves it out of the
+                available balance.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Available to allocate</p>
+              <p className="tabular text-2xl font-semibold text-success">
+                {formatINR(Number(savings.available_savings))}
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <SavingsMetric label="Income" value={Number(savings.total_income)} />
+            <SavingsMetric label="Spending" value={Number(savings.total_expenses)} />
+            <SavingsMetric
+              label="Already assigned to goals"
+              value={Number(savings.allocated_to_goals)}
+            />
+          </div>
+          {Number(savings.net_savings) < 0 && (
+            <p className="mt-3 text-xs text-warning" role="status">
+              Spending is higher than recorded income by{" "}
+              {formatINR(Math.abs(Number(savings.net_savings)))}. Goal contributions cannot exceed
+              available funds.
+            </p>
+          )}
+        </section>
+      )}
 
       {showForm && (
         <form
@@ -271,6 +338,7 @@ export default function GoalsPage() {
             <GoalCard
               key={g.id}
               goal={g}
+              availableSavings={Number(savings?.available_savings ?? 0)}
               onContribute={async (v) => {
                 await api.goals.contribute(g.id, v);
                 await load();
@@ -282,6 +350,15 @@ export default function GoalsPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function SavingsMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border/70 bg-background/50 px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="tabular mt-1 text-sm font-medium">{formatINR(value)}</p>
     </div>
   );
 }

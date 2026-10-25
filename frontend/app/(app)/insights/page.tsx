@@ -6,16 +6,19 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Bot,
+  Check,
   Repeat,
   Loader2,
   RefreshCw,
   ShieldAlert,
   TrendingUp,
+  X,
 } from "lucide-react";
 import {
   api,
   fetchFraudAnalysis,
   fetchSpendForecast,
+  setFraudAlertDecision,
   type FraudResult,
   type SpendForecast,
   type SubscriptionsResult,
@@ -23,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ForecastChart } from "@/components/ml/forecast-chart";
 import { ChatWidget } from "@/components/ml/chat-widget";
+import { formatINR } from "@/lib/utils";
 
 function SectionCard({
   title,
@@ -49,35 +53,78 @@ function SectionCard({
   );
 }
 
-function FraudSummary({ data }: { data: FraudResult }) {
-  const anomalies = (data.isolation_forest ?? []).filter((r) => r.is_anomaly);
-  const velocityFlags = data.velocity_flags ?? [];
-  const cycles = data.cycles ?? [];
-  const hasIssues = anomalies.length > 0 || velocityFlags.length > 0 || cycles.length > 0;
-
-  if (!hasIssues) {
-    return (
-      <div className="flex items-center gap-2.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-4 py-3">
-        <ShieldAlert className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <p className="text-sm text-emerald-700 dark:text-emerald-300">
-          No suspicious activity detected in your recent transactions.
-        </p>
-      </div>
-    );
+function FraudSummary({
+  data,
+  onDecisionSaved,
+}: {
+  data: FraudResult;
+  onDecisionSaved: () => Promise<void>;
+}) {
+  const [selectedAlert, setSelectedAlert] = React.useState<FraudResult["anomalous_transactions"][number] | null>(null);
+  const [savingDecision, setSavingDecision] = React.useState(false);
+  const [decisionError, setDecisionError] = React.useState<string | null>(null);
+  const anomalies = data.anomalous_transactions ?? [];
+  const activeAnomalies = anomalies.filter((alert) => alert.decision !== "remove");
+  const removedAnomalies = anomalies.filter((alert) => alert.decision === "remove");
+  const velocityFlags = data.velocity_signals ?? [];
+  const cycles = data.graph_cycles ?? [];
+  const hasIssues = activeAnomalies.length > 0 || velocityFlags.length > 0 || cycles.length > 0;
+  async function saveDecision(decision: "keep" | "remove") {
+    if (!selectedAlert) return;
+    setSavingDecision(true);
+    setDecisionError(null);
+    try {
+      await setFraudAlertDecision(selectedAlert.id, decision);
+      await onDecisionSaved();
+      setSelectedAlert(null);
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : "Couldn't save your choice");
+    } finally {
+      setSavingDecision(false);
+    }
   }
 
   return (
     <div className="space-y-2">
-      {anomalies.length > 0 && (
+      {!hasIssues && (
+        <div className="flex items-center gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-950/30">
+          <ShieldAlert className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            No suspicious activity detected in your recent transactions.
+          </p>
+        </div>
+      )}
+      {activeAnomalies.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
           <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
           <div>
             <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-              {anomalies.length} anomalous transaction{anomalies.length !== 1 ? "s" : ""} detected
+              {activeAnomalies.length} anomalous transaction
+              {activeAnomalies.length !== 1 ? "s" : ""} detected
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Isolation Forest flagged these as statistical outliers. Review your recent spending.
             </p>
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {activeAnomalies.map((txn) => {
+                const content = `${txn.description}: ${formatINR(Math.abs(txn.amount))} · score ${txn.anomaly_score.toFixed(2)}`;
+                return (
+                  <li key={txn.id}>
+                    <button
+                      type="button"
+                      className="group flex w-full cursor-pointer items-center justify-between gap-3 rounded px-1 py-1 text-left hover:bg-amber-100/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:hover:bg-amber-900/30"
+                      aria-label={`Review ${txn.description}, ${formatINR(Math.abs(txn.amount))}`}
+                      onClick={() => { setSelectedAlert(txn); setDecisionError(null); }}
+                    >
+                      <span>{content}</span>
+                      <span className="shrink-0 rounded border border-primary/30 px-2 py-1 font-medium text-primary underline-offset-2 group-hover:underline">
+                        {txn.decision === "keep" ? "Kept · review" : "Review options"}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       )}
@@ -89,9 +136,11 @@ function FraudSummary({ data }: { data: FraudResult }) {
           <AlertCircle className="h-4 w-4 mt-0.5 text-red-600 dark:text-red-400 shrink-0" />
           <div>
             <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              Velocity alert: {f.description}
+              Velocity alert: {f.merchant}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{f.count} transactions in window</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {f.transactions_in_window} transactions in {f.window_minutes} minutes
+            </p>
           </div>
         </div>
       ))}
@@ -106,6 +155,89 @@ function FraudSummary({ data }: { data: FraudResult }) {
               Money may be cycling between {cycles[0]?.join(" → ")}
             </p>
           </div>
+        </div>
+      )}
+      {removedAnomalies.length > 0 && (
+        <div className="rounded-md border border-border bg-secondary/30 px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            Removed from suspicious activity by you
+          </p>
+          <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+            {removedAnomalies.map((alert) => (
+              <li key={alert.id}>
+                <button
+                  type="button"
+                  className="text-left underline underline-offset-2 hover:text-foreground"
+                  onClick={() => { setSelectedAlert(alert); setDecisionError(null); }}
+                >
+                  {alert.description}: {formatINR(Math.abs(alert.amount))} · Review choice
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {selectedAlert && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingDecision) setSelectedAlert(null);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fraud-alert-dialog-title"
+            className="w-full max-w-md rounded-xl border border-amber-500/40 bg-card p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <h3 id="fraud-alert-dialog-title" className="text-base font-semibold">
+                  Review suspicious activity
+                </h3>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                disabled={savingDecision}
+                onClick={() => setSelectedAlert(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 rounded-md border border-border bg-background/60 p-3">
+              <p className="text-sm font-medium">{selectedAlert.description}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedAlert.merchant || "Merchant unavailable"} · {formatINR(Math.abs(selectedAlert.amount))}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {new Date(selectedAlert.date).toLocaleDateString("en-IN")} · anomaly score {selectedAlert.anomaly_score.toFixed(2)}
+              </p>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Keep this transaction flagged, or remove it from suspicious activity? The transaction itself will remain in your records.
+            </p>
+            {decisionError && (
+              <p className="mt-3 text-sm text-destructive" role="alert">{decisionError}</p>
+            )}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                disabled={savingDecision}
+                onClick={() => void saveDecision("remove")}
+              >
+                Remove from alerts
+              </Button>
+              <Button
+                disabled={savingDecision}
+                onClick={() => void saveDecision("keep")}
+              >
+                <Check className="h-4 w-4" /> Keep flagged
+              </Button>
+            </div>
+          </section>
         </div>
       )}
     </div>
@@ -267,7 +399,10 @@ export default function InsightsPage() {
                 <p className="text-sm text-muted-foreground">{fraudErr}</p>
               </div>
             ) : fraud ? (
-              <FraudSummary data={fraud} />
+              <FraudSummary
+                data={fraud}
+                onDecisionSaved={loadFraud}
+              />
             ) : null}
           </SectionCard>
 
